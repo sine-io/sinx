@@ -1,0 +1,47 @@
+# Go编译产物
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# 项目文档和GitHub配置
+/.github/
+/docs/
+
+# IDE和编辑器文件
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 依赖目录
+/vendor/
+/bin/
+/pkg/
+
+# 性能分析文件
+*.pprof
+*.prof
+*.trace
+profile.out
+cpu.out
+mem.out
+
+# 临时文件和日志
+*.log
+*.tmp
+/tmp/
+/logs/
+
+# 测试缓存
+*.test
+/coverage.txt
+
+# 配置文件
+*.env
+.env.local
+config.local.yaml
