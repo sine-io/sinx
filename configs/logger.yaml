@@ -1,0 +1,23 @@
+# 日志配置
+log:
+  # 日志级别: debug, info, warn, error, dpanic, panic, fatal
+  level: "info"
+  # 日志格式: json, console
+  format: "json"
+  # 输出: 文件路径或 "stdout" 表示标准输出
+  output: "logs/app.log"
+  # 是否启用日志轮转
+  rotation:
+    enabled: true
+    # 最大大小，单位MB
+    max_size: 100
+    # 最大保留天数
+    max_age: 30
+    # 最大保留文件数
+    max_backups: 10
+    # 是否压缩
+    compress: true
+  # 是否在日志中包含调用者信息
+  caller: true
+  # 是否包含堆栈信息 (错误级别及以上)
+  stacktrace: true
