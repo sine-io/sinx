@@ -1,0 +1,39 @@
+# Dkron example configuration file
+
+# This node is running in server mode
+server: true
+
+# Provides the number of expected servers in the datacenter.
+# Either this value should not be provided or the value must agree with other servers in the cluster.
+# When provided, Dkron waits until the specified number of servers are available and then bootstraps the cluster.
+# This allows an initial leader to be elected automatically. This flag requires server mode.
+bootstrap-expect: 1
+
+# bind-addr: "{{ GetPrivateIP }}:8946"
+# log-level: debug
+# tags:
+#   dc: east
+# encrypt: a-valid-key-generated-with-dkron-keygen
+# retry-join:
+#   - provider=aws region=eu-west-1 tag_key=consul tag_value=... access_key_id=... secret_access_key=...
+#   - 10.0.0.1
+#   - 10.0.0.2
+#   - 10.0.0.3
+#
+# pre-webhook-endpoint: https://hooks.slack.com/services/XXXXXX/XXXXXXX/XXXXXXXXXXXXXXXXXXXX
+# pre-webhook-payload: ""{\"text\":\"{{.JobName}} started\",\"username\":\"DkronBot\"}""
+# pre-webhook-headers:
+#   - Content-Type:application/json
+# 
+# webhook-endpoint: https://hooks.slack.com/services/XXXXXX/XXXXXXX/XXXXXXXXXXXXXXXXXXXX
+# webhook-payload: ""{\"text\":\"{{.JobName}} finished with status {{.Success}}\",\"username\":\"DkronBot\"}""
+# webhook-headers:
+#   - Content-Type:application/json
+#
+# mail-host: email-smtp.eu-west-1.amazonaws.com
+# mail-port: 25
+# mail-username": mailuser
+# mail-password": mailpassword
+# mail-from": cron@example.com
+# mail-subject-prefix: [Dkron]
+# cronitor-endpoint: https://cronitor.link/p/XXXXXXXXXXXXXXXXXXXXXXXXXXXX

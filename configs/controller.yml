@@ -1,0 +1,13 @@
+node-name: "controller"
+log-level: "info"
+
+bootstrap-expect: 1
+
+server: true
+http-addr: ":17070"
+data-dir: "controller.data"
+
+bind-addr: "{{ GetPrivateIP }}:18080"
+rpc-port: "19090"
+
+disable-usage-stats: true
