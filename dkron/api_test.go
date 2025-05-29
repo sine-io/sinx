@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -19,7 +18,7 @@ import (
 )
 
 func setupAPITest(t *testing.T, port string) (dir string, a *Agent) {
-	dir, err := ioutil.TempDir("", "dkron-test")
+	dir, err := os.MkdirTemp("", "dkron-test")
 	require.NoError(t, err)
 
 	ip1, returnFn1 := testutil.TakeIP()
@@ -69,7 +68,7 @@ func TestAPIJobCreateUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -90,7 +89,7 @@ func TestAPIJobCreateUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	body, _ = ioutil.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var overwriteJob Job
@@ -115,7 +114,7 @@ func TestAPIJobCreateUpdateParentJob_SameParent(t *testing.T) {
 		"parent_job": "test_job"
 	}`))
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -133,7 +132,7 @@ func TestAPIJobCreateUpdateParentJob_NoParent(t *testing.T) {
 		"parent_job": "parent_test_job"
 	}`))
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -281,7 +280,7 @@ func TestAPIJobCreateUpdateJobWithInvalidParentIsNotCreated(t *testing.T) {
 	require.NoError(t, err, err)
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, ErrParentJobNotFound.Error(), string(body))
 
@@ -317,7 +316,7 @@ func TestAPIJobRestore(t *testing.T) {
 	bodyWriter.Close()
 
 	resp, _ := http.Post(baseURL, contentType, bodyBuffer)
-	respBody, _ := ioutil.ReadAll(resp.Body)
+	respBody, _ := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	rs := string(respBody)
 	t.Log("restore response: ", rs)
@@ -350,7 +349,7 @@ func TestAPIJobOutputTruncate(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	resp, _ = http.Get(baseURL + "/jobs/test_job/executions")
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, string(body), "[]")
@@ -382,7 +381,7 @@ func TestAPIJobOutputTruncate(t *testing.T) {
 
 	// no truncation
 	resp, _ = http.Get(baseURL + "/jobs/test_job/executions")
-	body, _ = ioutil.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	var executions []apiExecution
@@ -397,7 +396,7 @@ func TestAPIJobOutputTruncate(t *testing.T) {
 
 	// truncate limit to 200
 	resp, _ = http.Get(baseURL + "/jobs/test_job/executions?output_size_limit=200")
-	body, _ = ioutil.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	if err := json.Unmarshal(body, &executions); err != nil {
@@ -411,7 +410,7 @@ func TestAPIJobOutputTruncate(t *testing.T) {
 
 	// test single execution endpoint
 	resp, _ = http.Get(baseURL + "/jobs/test_job/executions/" + executions[0].Id)
-	body, _ = ioutil.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	var execution Execution

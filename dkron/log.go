@@ -1,7 +1,7 @@
 package dkron
 
 import (
-	"io/ioutil"
+	"io"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +31,7 @@ func InitLogger(logLevel string, node string) *logrus.Entry {
 			gin.DefaultWriter = log.Writer()
 			gin.SetMode(gin.DebugMode)
 		} else {
-			gin.DefaultWriter = ioutil.Discard
+			gin.DefaultWriter = io.Discard
 			gin.SetMode(gin.ReleaseMode)
 		}
 	})

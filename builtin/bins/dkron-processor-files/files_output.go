@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -29,7 +28,7 @@ func (l *FilesOutput) Process(args *plugin.ProcessorArgs) types.Execution {
 	filePath := fmt.Sprintf("%s/%s.log", l.logDir, args.Execution.Key())
 
 	log.WithField("file", filePath).Info("files: Writing file")
-	if err := ioutil.WriteFile(filePath, out, 0644); err != nil {
+	if err := os.WriteFile(filePath, out, 0644); err != nil {
 		log.WithError(err).Error("Error writing log file")
 	}
 

@@ -1,0 +1,20 @@
+node-name: "node3"
+log-level: "info"
+
+
+server: true
+# http-addr: ":17270"
+# data-dir: "node3.data"
+# bootstrap-expect: 3
+bootstrap-expect: 3
+bind: "10.0.0.3"
+advertise: "10.0.0.3"
+join: "10.0.0.1"
+
+# bind-addr: "{{ GetPrivateIP }}:17280"
+# rpc-port: "17290"
+
+disable-usage-stats: true
+
+# retry-join: 
+  # - "{{GetPrivateIP}}:17080"

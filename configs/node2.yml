@@ -1,0 +1,19 @@
+node-name: "node2"
+log-level: "debug"
+
+server: true
+# http-addr: ":17170"
+# data-dir: "node2.data"
+bootstrap-expect: 3
+bind: "172.26.176.2"
+advertise: "172.26.176.2"
+join: "172.26.176.1"
+
+
+# bind-addr: "{{ GetPrivateIP }}:17180"
+# rpc-port: "17190"
+
+disable-usage-stats: true
+
+# retry-join: 
+#   - "{{GetPrivateIP}}:17080"

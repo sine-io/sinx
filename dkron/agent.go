@@ -6,8 +6,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
+	"io"
+	"math/rand/v2"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/devopsfaith/krakend-usage/client"
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/distribworks/dkron/v4/plugin"
 	proto "github.com/distribworks/dkron/v4/types"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/raft"
@@ -162,7 +162,7 @@ func (a *Agent) Start() error {
 	a.logger = log
 
 	// Initialize rand with current time
-	rand.Seed(time.Now().UnixNano())
+	// rand.Seed(time.Now().UnixNano()) // sine.2025.5.29, use math/rand/v2
 
 	// Normalize configured addresses
 	if err := a.config.normalizeAddrs(); err != nil && !errors.Is(err, ErrResolvingHost) {
@@ -313,7 +313,7 @@ func (a *Agent) setupRaft() error {
 		}
 	}
 
-	logger := ioutil.Discard
+	logger := io.Discard
 	if a.logger.Logger.Level == logrus.DebugLevel {
 		logger = a.logger.Logger.Writer()
 	}
@@ -523,8 +523,8 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 		serfConfig.LogOutput = a.logger.Logger.Writer()
 		serfConfig.MemberlistConfig.LogOutput = a.logger.Logger.Writer()
 	} else {
-		serfConfig.LogOutput = ioutil.Discard
-		serfConfig.MemberlistConfig.LogOutput = ioutil.Discard
+		serfConfig.LogOutput = io.Discard
+		serfConfig.MemberlistConfig.LogOutput = io.Discard
 	}
 
 	// Create serf first
@@ -767,7 +767,7 @@ func (a *Agent) getQualifyingNodes(nodes []Node, bareTags map[string]string) []N
 
 // The default selector function for getTargetNodes/selectNodes
 func defaultSelector(nodes []Node) int {
-	return rand.Intn(len(nodes))
+	return rand.IntN(len(nodes)) // sine. use math/rand/v2
 }
 
 // selectNodes selects at most #cardinality from the given nodes using the selectFunc

@@ -1,0 +1,22 @@
+node-name: "node4"
+log-level: "info"
+
+bind: "10.0.0.4"
+join: "10.0.0.1"
+
+# server: false
+# http-addr: ":17370"
+# data-dir: "node4.data"
+# bootstrap-expect: 3
+
+# bind-addr: "{{ GetPrivateIP }}:17380"
+# rpc-port: "17390"
+
+disable-usage-stats: true
+
+# retry-join: 
+  # - "{{GetPrivateIP}}:17080"
+
+tags:
+  dc: east
+  role: d4

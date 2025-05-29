@@ -1,7 +1,6 @@
 package dkron
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestGRPCExecutionDone(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dkron-test")
+	dir, err := os.MkdirTemp("", "dkron-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 

@@ -3,7 +3,7 @@ package dkron
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/smtp"
 	"net/textproto"
@@ -201,7 +201,7 @@ func (n *notifier) callPreExecutionWebhook() error {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	n.logger.WithFields(logrus.Fields{
 		"status": resp.Status,
 		"header": resp.Header,
@@ -235,7 +235,7 @@ func (n *notifier) callExecutionWebhook() error {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	n.logger.WithFields(logrus.Fields{
 		"status": resp.Status,
 		"header": resp.Header,

@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -207,7 +207,7 @@ func createClient(config map[string]string) (http.Client, []error) {
 
 // loadCertPool creates a CertPool using the given file
 func loadCertPool(filename string) (*x509.CertPool, error) {
-	certsFile, err := ioutil.ReadFile(filename)
+	certsFile, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

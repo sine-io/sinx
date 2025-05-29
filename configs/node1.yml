@@ -1,0 +1,15 @@
+node-name: "node1"
+log-level: "info"
+
+server: true
+# http-addr: ":17070"
+# data-dir: "node1.data"
+bootstrap-expect: 1
+# bind: "10.0.0.1"
+# advertise: "10.0.0.1"
+
+# bind-addr: "{{ GetPrivateIP }}:17080"
+# rpc-port: "17090"
+
+disable-usage-stats: true
+enable-prometheus: true

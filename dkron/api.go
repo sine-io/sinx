@@ -3,7 +3,7 @@ package dkron
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -303,7 +303,7 @@ func (h *HTTPTransport) restoreHandler(c *gin.Context) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
@@ -420,7 +420,11 @@ func (h *HTTPTransport) membersHandler(c *gin.Context) {
 	mems := []*types.Member{}
 	for _, m := range h.agent.serf.Members() {
 		id, _ := uuid.GenerateUUID()
-		mid := &types.Member{m, id, m.Status.String()}
+		mid := &types.Member{
+			Member:     m,
+			Id:         id,
+			StatusText: m.Status.String(),
+		}
 		mems = append(mems, mid)
 	}
 	c.Header("X-Total-Count", strconv.Itoa(len(mems)))
