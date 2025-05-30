@@ -2,25 +2,12 @@ package cmd
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/distribworks/dkron/v4/dkron"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
-
-var (
-	logLevel = "error"
-)
-
-func getEnvWithDefault() string {
-	ea := os.Getenv("DKRON_BACKEND_MACHINE")
-	if ea == "" {
-		return "127.0.0.1:2379"
-	}
-	return ea
-}
 
 func TestUnmarshalTags(t *testing.T) {
 	tagPairs := []string{

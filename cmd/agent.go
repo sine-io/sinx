@@ -51,6 +51,11 @@ func init() {
 }
 
 func agentRun(args ...string) error {
+	// sine, 2025.5.30
+	// This log statement helps avoid compiler warnings about unused parameters
+	// as 'args' is not used elsewhere in the function
+	log.Debugf("agentRun called with args: %v", args)
+
 	// Make sure we clean up any managed plugins at the end of this
 	p := &Plugins{
 		LogLevel: config.LogLevel,
