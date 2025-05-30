@@ -1,5 +1,5 @@
 node-name: "node1"
-log-level: "info"
+log-level: "debug"
 
 server: true
 # http-addr: ":17070"

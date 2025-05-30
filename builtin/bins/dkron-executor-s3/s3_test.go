@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	dktypes "github.com/distribworks/dkron/v4/types"
+	"github.com/google/uuid"
 )
 
 func TestPublishExecute(t *testing.T) {
@@ -11,7 +14,7 @@ func TestPublishExecute(t *testing.T) {
 		JobName: "testJob",
 		Config: map[string]string{
 			"bucket":     "bkt01",
-			"key":        "obj001",
+			"key":        fmt.Sprintf("TestPublishExecute%s", uuid.NewString()),
 			"access_key": "2T7ORJ33KZM4LKNRA2XK",
 			"secret_key": "sZFnXcfnKvAojAO84pzMONFPoDLCUpdGpdPUj2Up",
 			"endpoint":   "http://10.155.31.145:7480",
@@ -23,4 +26,37 @@ func TestPublishExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestPublishExecuteConcurrent(t *testing.T) {
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			s3 := &S3{}
+
+			pa := &dktypes.ExecuteRequest{
+				JobName: "testJob",
+				Config: map[string]string{
+					"bucket":     "bkt01",
+					"key":        fmt.Sprintf("TestPublishExecuteConcurrent%s", uuid.NewString()),
+					"access_key": "2T7ORJ33KZM4LKNRA2XK",
+					"secret_key": "sZFnXcfnKvAojAO84pzMONFPoDLCUpdGpdPUj2Up",
+					"endpoint":   "http://10.155.31.145:7480",
+					"region":     "us-east-1",
+				},
+			}
+			resp, err := s3.Execute(pa, nil)
+			if err != nil {
+				t.Error(err)
+			}
+
+			fmt.Printf("No.: %d, resp: %v\n", i+1, resp)
+		}()
+	}
+	wg.Wait()
 }

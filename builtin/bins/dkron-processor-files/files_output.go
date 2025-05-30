@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/distribworks/dkron/v4/plugin"
@@ -25,15 +25,25 @@ func (l *FilesOutput) Process(args *plugin.ProcessorArgs) types.Execution {
 	l.parseConfig(args.Config)
 
 	out := args.Execution.Output
-	filePath := fmt.Sprintf("%s/%s.log", l.logDir, args.Execution.Key())
 
-	log.WithField("file", filePath).Info("files: Writing file")
-	if err := os.WriteFile(filePath, out, 0644); err != nil {
+	// Ensure our path exists
+	if err := os.MkdirAll(l.logDir, 0o755); err != nil && !os.IsExist(err) {
+		log.Errorf("logDir path not accessible: %v", err)
+	}
+	// logFilepath := fmt.Sprintf("%s/%s.log", l.logDir, args.Execution.Key())
+	// sine. 2025.5.30
+	// Use filepath.Join to ensure correct path separators
+	// This is important for cross-platform compatibility
+	// and to avoid issues with different OS path formats.
+	logFilepath := filepath.Join(l.logDir, args.Execution.Key()+".log")
+
+	log.WithField("file", logFilepath).Info("files: Writing file")
+	if err := os.WriteFile(logFilepath, out, 0644); err != nil {
 		log.WithError(err).Error("Error writing log file")
 	}
 
 	if !l.forward {
-		args.Execution.Output = []byte(filePath)
+		args.Execution.Output = []byte(logFilepath)
 	}
 
 	return args.Execution

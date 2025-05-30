@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -64,6 +63,7 @@ func (p *Plugins) DiscoverPlugins() error {
 			return err
 		}
 		processors = append(processors, p...)
+
 		e, err := plugin.Discover("dkron-executor-*", filepath.Dir(exePath))
 		if err != nil {
 			return err
@@ -111,7 +111,10 @@ func (p *Plugins) DiscoverPlugins() error {
 
 func getPluginName(file string) (string, bool) {
 	// Look for foo-bar-baz. The plugin name is "baz"
-	base := path.Base(file)
+	// sine, 2025.5.30
+	// we should use filepath.Base instead of path.Base.
+	// because path.Base will return '/', but filepath.Base will return '/' or '\\'.
+	base := filepath.Base(file)
 	parts := strings.SplitN(base, "-", 3)
 	if len(parts) != 3 {
 		return "", false
