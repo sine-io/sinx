@@ -4,9 +4,10 @@ import (
 	"io"
 
 	"github.com/hashicorp/raft"
-	dkronpb "github.com/sine-io/sinx/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
+
+	dkronpb "github.com/sine-io/sinx/types"
 )
 
 // MessageType is the type to encode FSM commands.

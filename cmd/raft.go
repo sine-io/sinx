@@ -9,6 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	raftCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent.")
+	raftRemovePeerCmd.Flags().StringVar(&peerID, "peer-id", "", "Remove a Dkron server with the given ID from the Raft configuration.")
+
+	raftCmd.AddCommand(raftListCmd)
+	raftCmd.AddCommand(raftRemovePeerCmd)
+
+	rootCmd.AddCommand(raftCmd)
+}
+
 // versionCmd represents the version command
 var raftCmd = &cobra.Command{
 	Use:   "raft [command]",
@@ -72,14 +82,4 @@ var raftRemovePeerCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func init() {
-	raftCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent.")
-	raftRemovePeerCmd.Flags().StringVar(&peerID, "peer-id", "", "Remove a Dkron server with the given ID from the Raft configuration.")
-
-	raftCmd.AddCommand(raftListCmd)
-	raftCmd.AddCommand(raftRemovePeerCmd)
-
-	dkronCmd.AddCommand(raftCmd)
 }

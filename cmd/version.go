@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	rootCmd.AddCommand(versionCmd)
+}
+
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
@@ -20,8 +24,4 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("Agent Protocol: %d (Understands back to: %d)\n",
 			serf.ProtocolVersionMax, serf.ProtocolVersionMin)
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(versionCmd)
 }

@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	proto "github.com/sine-io/sinx/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	proto "github.com/sine-io/sinx/types"
 )
 
 const defaultRetryInterval = 500 * time.Millisecond

@@ -6,6 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	rootCmd.AddCommand(leaveCmd)
+	leaveCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent")
+}
+
 // versionCmd represents the version command
 var leaveCmd = &cobra.Command{
 	Use:   "leave",
@@ -34,9 +39,4 @@ var leaveCmd = &cobra.Command{
 		log.Info("Left the cluster successfully")
 		return nil
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(leaveCmd)
-	leaveCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent")
 }

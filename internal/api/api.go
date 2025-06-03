@@ -1,4 +1,4 @@
-package dkron
+package api
 
 import (
 	"encoding/json"

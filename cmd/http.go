@@ -7,6 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	rootCmd.AddCommand(httpCmd)
+}
+
 var httpCmd = &cobra.Command{
 	Hidden: true,
 	Use:    "http",
@@ -23,8 +27,4 @@ var httpCmd = &cobra.Command{
 			GRPCServer: plugin.DefaultGRPCServer,
 		})
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(httpCmd)
 }

@@ -1,4 +1,4 @@
-package dkron
+package agent
 
 import (
 	"context"
@@ -22,12 +22,14 @@ import (
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/hashicorp/serf/serf"
-	"github.com/sine-io/sinx/plugin"
-	proto "github.com/sine-io/sinx/types"
+	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
 	"github.com/soheilhy/cmux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/sine-io/sinx/plugin"
+	proto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -123,7 +125,7 @@ type Agent struct {
 	listener net.Listener
 
 	// logger is the log entry to use fo all logging calls
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // ProcessorFactory is a function type that creates a new instance

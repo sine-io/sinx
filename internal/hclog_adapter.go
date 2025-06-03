@@ -6,19 +6,19 @@ import (
 	golog "log"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
 )
 
 // HCLogAdapter implements the hclog interface, and wraps it
 // around a Logrus entry
 type HCLogAdapter struct {
-	Logger     logrus.FieldLogger
+	Logger     zerolog.Logger
 	LoggerName string
 }
 
 // Log Emit a message and key/value pairs at a provided log level
-func (*HCLogAdapter) Log(level hclog.Level, msg string, args ...interface{}) {
-}
+func (*HCLogAdapter) Log(level hclog.Level, msg string, args ...interface{}) {}
 
 // Trace HCLog has one more level than we do. As such, we will never
 // set trace level.
@@ -137,7 +137,7 @@ func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
 }
 
 // CreateEntry creates a new logrus entry
-func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
+func (a *HCLogAdapter) CreateEntry(args []interface{}) zerolog.Logger {
 	if len(args)%2 != 0 {
 		args = append(args, "<unknown>")
 	}
@@ -149,7 +149,12 @@ func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
 		fields[k] = v
 	}
 
-	return a.Logger.WithFields(fields)
+	// return a.Logger.WithFields(fields)
+	ctx := a.Logger.With()
+	for k, v := range fields {
+		ctx = ctx.Interface(k, v)
+	}
+	return ctx.Logger()
 }
 
 // ImpliedArgs returns With key/value pairs

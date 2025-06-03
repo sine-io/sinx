@@ -8,10 +8,12 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/kardianos/osext"
-	"github.com/sine-io/sinx/dkron"
-	dkplugin "github.com/sine-io/sinx/plugin"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+
+	"github.com/sine-io/sinx/dkron"
+	"github.com/sine-io/sinx/logging"
+	dkplugin "github.com/sine-io/sinx/plugin"
 )
 
 var embededPlugins = []string{"shell", "http"}
@@ -134,7 +136,7 @@ func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (
 	config.Plugins = dkplugin.PluginMap
 	config.SyncStdout = os.Stdout
 	config.SyncStderr = os.Stderr
-	config.Logger = &dkron.HCLogAdapter{Logger: dkron.InitLogger(p.LogLevel, p.NodeName), LoggerName: "plugins"}
+	config.Logger = &dkron.HCLogAdapter{Logger: logging.InitLogger(p.LogLevel, p.NodeName), LoggerName: "plugins"}
 
 	switch pluginType {
 	case dkplugin.ProcessorPluginName:

@@ -1,8 +1,7 @@
-package dkron
+package logging
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -34,7 +33,7 @@ func InitLogger(logLevel string, node string) zerolog.Logger {
 			initErrors = append(initErrors, fmt.Errorf("invalid log level '%s', defaulting to INFO: %w", logLevel, err))
 		}
 
-		var output io.Writer = zerolog.ConsoleWriter{
+		consoleLogger := zerolog.ConsoleWriter{
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
 		}
@@ -47,38 +46,19 @@ func InitLogger(logLevel string, node string) zerolog.Logger {
 			Compress:   true,
 		}
 
-		output = zerolog.MultiLevelWriter(os.Stderr, fileLogger)
+		writer := zerolog.MultiLevelWriter(consoleLogger, fileLogger)
 
-		formattedLogger = zerolog.New(output).
+		formattedLogger = zerolog.New(writer).
 			Level(logLevel).
 			With().Str("node", node). // Add node information to the logger
 			Timestamp().
 			Logger()
+
+		for _, err := range initErrors {
+			formattedLogger.Error().Err(err).Msg("Logger initialization error")
+		}
+		initErrors = nil // Clear errors after logging them
 	})
 
 	return formattedLogger
-
-	// formattedLogger := logrus.New()
-	// formattedLogger.Formatter = &logrus.TextFormatter{FullTimestamp: true}
-
-	// level, err := logrus.ParseLevel(logLevel)
-	// if err != nil {
-	// 	logrus.WithError(err).Error("Error parsing log level, using: info")
-	// 	level = logrus.InfoLevel
-	// }
-
-	// formattedLogger.Level = level
-	// log := logrus.NewEntry(formattedLogger).WithField("node", node)
-
-	// ginOnce.Do(func() {
-	// 	if level == logrus.DebugLevel {
-	// 		gin.DefaultWriter = log.Writer()
-	// 		gin.SetMode(gin.DebugMode)
-	// 	} else {
-	// 		gin.DefaultWriter = io.Discard
-	// 		gin.SetMode(gin.ReleaseMode)
-	// 	}
-	// })
-
-	// return log
 }

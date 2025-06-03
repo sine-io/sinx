@@ -21,6 +21,15 @@ url: %s
 `
 
 var genDocDir string
+
+func init() {
+	rootCmd.AddCommand(docCmd)
+	docCmd.PersistentFlags().StringVar(&genDocDir, "dir", "/tmp/dkrondoc/", "the directory to write the doc.")
+
+	// For bash-completion
+	docCmd.PersistentFlags().SetAnnotation("dir", cobra.BashCompSubdirsInDir, []string{})
+}
+
 var docCmd = &cobra.Command{
 	Use:   "doc",
 	Short: "Generate Markdown documentation for the Dkron CLI.",
@@ -55,12 +64,4 @@ for rendering in Hugo.`,
 
 		return nil
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(docCmd)
-	docCmd.PersistentFlags().StringVar(&genDocDir, "dir", "/tmp/dkrondoc/", "the directory to write the doc.")
-
-	// For bash-completion
-	docCmd.PersistentFlags().SetAnnotation("dir", cobra.BashCompSubdirsInDir, []string{})
 }

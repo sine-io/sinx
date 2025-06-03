@@ -2,7 +2,7 @@
 syntax = "proto3";
 
 package types;
-option go_package = "github.com/distribworks/dkron/types";
+option go_package = "github.com/sine-io/sinx/types";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 

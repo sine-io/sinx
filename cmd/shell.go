@@ -7,6 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	rootCmd.AddCommand(shellCmd)
+}
+
 var shellCmd = &cobra.Command{
 	Hidden: true,
 	Use:    "shell",
@@ -23,8 +27,4 @@ var shellCmd = &cobra.Command{
 			GRPCServer: plugin.DefaultGRPCServer,
 		})
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(shellCmd)
 }

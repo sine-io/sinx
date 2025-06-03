@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/sine-io/sinx/dkron"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,6 +21,14 @@ const (
 	// gracefulTimeout controls how long we wait before forcefully terminating
 	gracefulTimeout = 3 * time.Hour
 )
+
+func init() {
+	rootCmd.AddCommand(agentCmd)
+
+	agentCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
+	agentCmd.Flags().AddFlagSet(dkron.ConfigFlagSet())
+	_ = viper.BindPFlags(agentCmd.Flags())
+}
 
 // agentCmd represents the agent command
 var agentCmd = &cobra.Command{
@@ -40,14 +47,6 @@ It also runs a web UI.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return agentRun(args...)
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(agentCmd)
-
-	agentCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	agentCmd.Flags().AddFlagSet(dkron.ConfigFlagSet())
-	_ = viper.BindPFlags(agentCmd.Flags())
 }
 
 func agentRun(args ...string) error {

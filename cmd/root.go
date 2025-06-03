@@ -18,8 +18,8 @@ var config = dkron.DefaultConfig()
 var rpcAddr string
 var ip string
 
-// dkronCmd represents the dkron command
-var dkronCmd = &cobra.Command{
+// rootCmd represents the dkron command
+var rootCmd = &cobra.Command{
 	Use:   "dkron",
 	Short: "Open source distributed job scheduling system",
 	Long: `Dkron is a system service that runs scheduled jobs at given intervals or times,
@@ -30,7 +30,7 @@ If a machine fails (the leader), a follower will take over and keep running the 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := dkronCmd.Execute(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -53,8 +53,9 @@ func initConfig() error {
 	viper.SetEnvKeyReplacer(replacer)
 	viper.AutomaticEnv() // read in environment variables that match
 
+	// TODO: needed?
 	// Add hook to set error logs to stderr and regular logs to stdout
-	logrus.AddHook(&logging.LogSplitter{})
+	// logrus.AddHook(&logging.LogSplitter{})
 
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {             // Handle errors reading the config file
@@ -79,7 +80,7 @@ func initConfig() error {
 
 	config.Tags = tags
 
-	dkron.InitLogger(viper.GetString("log-level"), config.NodeName)
+	logging.InitLogger(viper.GetString("log-level"), config.NodeName)
 
 	return nil
 }

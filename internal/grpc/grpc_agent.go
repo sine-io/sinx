@@ -1,4 +1,4 @@
-package dkron
+package grpc
 
 import (
 	"errors"

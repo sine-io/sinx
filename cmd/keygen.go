@@ -10,6 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	rootCmd.AddCommand(keygenCmd)
+}
+
 // versionCmd represents the version command
 var keygenCmd = &cobra.Command{
 	Use:   "keygen",
@@ -30,8 +34,4 @@ var keygenCmd = &cobra.Command{
 		log.Info(base64.StdEncoding.EncodeToString(key))
 		return nil
 	},
-}
-
-func init() {
-	dkronCmd.AddCommand(keygenCmd)
 }
