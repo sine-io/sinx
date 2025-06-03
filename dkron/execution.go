@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	proto "github.com/distribworks/dkron/v4/types"
+	proto "github.com/sine-io/sinx/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

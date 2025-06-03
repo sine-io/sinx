@@ -3,8 +3,8 @@ package plugin
 import (
 	"context"
 
-	"github.com/distribworks/dkron/v4/types"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sine-io/sinx/types"
 	"google.golang.org/grpc"
 )
 

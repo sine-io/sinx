@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
-	dkplugin "github.com/distribworks/dkron/v4/plugin"
-	dktypes "github.com/distribworks/dkron/v4/types"
 	"github.com/fullstorydev/grpcurl"
 	"github.com/jhump/protoreflect/grpcreflect"
 	"github.com/pkg/errors"
+	dkplugin "github.com/sine-io/sinx/plugin"
+	dktypes "github.com/sine-io/sinx/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"

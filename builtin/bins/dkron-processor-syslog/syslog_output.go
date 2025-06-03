@@ -3,9 +3,9 @@ package main
 import (
 	"strconv"
 
-	"github.com/distribworks/dkron/v4/plugin"
-	"github.com/distribworks/dkron/v4/types"
 	gsyslog "github.com/hashicorp/go-syslog"
+	"github.com/sine-io/sinx/plugin"
+	"github.com/sine-io/sinx/types"
 	log "github.com/sirupsen/logrus"
 )
 

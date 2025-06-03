@@ -4,8 +4,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/distribworks/dkron/v4/plugin"
 	"github.com/fluent/fluent-logger-golang/fluent"
+	"github.com/sine-io/sinx/plugin"
 	log "github.com/sirupsen/logrus"
 )
 

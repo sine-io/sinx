@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/distribworks/dkron/v4/plugin"
+	"github.com/sine-io/sinx/plugin"
 )
 
 func main() {

@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/distribworks/dkron/v4/dkron"
-	dkplugin "github.com/distribworks/dkron/v4/plugin"
 	"github.com/hashicorp/go-plugin"
 	"github.com/kardianos/osext"
+	"github.com/sine-io/sinx/dkron"
+	dkplugin "github.com/sine-io/sinx/plugin"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

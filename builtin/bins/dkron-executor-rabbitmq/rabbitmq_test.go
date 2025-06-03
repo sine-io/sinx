@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	dktypes "github.com/distribworks/dkron/v4/types"
+	dktypes "github.com/sine-io/sinx/types"
 	"github.com/stretchr/testify/assert"
 )
 

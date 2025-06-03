@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/distribworks/dkron/v4/plugin"
-	"github.com/distribworks/dkron/v4/types"
+	"github.com/sine-io/sinx/plugin"
+	"github.com/sine-io/sinx/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

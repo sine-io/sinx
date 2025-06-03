@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	dktypes "github.com/distribworks/dkron/v4/types"
+	dktypes "github.com/sine-io/sinx/types"
 )
 
 func TestProduceExecuteWithKey(t *testing.T) {

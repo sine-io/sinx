@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	dkplugin "github.com/distribworks/dkron/v4/plugin"
-	"github.com/distribworks/dkron/v4/plugin/shell"
 	"github.com/hashicorp/go-plugin"
+	dkplugin "github.com/sine-io/sinx/plugin"
+	"github.com/sine-io/sinx/plugin/shell"
 	"github.com/spf13/cobra"
 )
 

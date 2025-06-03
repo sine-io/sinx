@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/distribworks/dkron/v4/types"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sine-io/sinx/types"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/buntdb"
 	status "google.golang.org/grpc/status"

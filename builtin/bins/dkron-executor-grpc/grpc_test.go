@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/distribworks/dkron/v4/builtin/bins/dkron-executor-grpc/test"
-	dktypes "github.com/distribworks/dkron/v4/types"
+	"github.com/sine-io/sinx/builtin/bins/dkron-executor-grpc/test"
+	dktypes "github.com/sine-io/sinx/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )

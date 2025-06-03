@@ -3,8 +3,8 @@ package plugin
 import (
 	"net/rpc"
 
-	"github.com/distribworks/dkron/v4/types"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sine-io/sinx/types"
 )
 
 // Processor is an interface that wraps the Process method.

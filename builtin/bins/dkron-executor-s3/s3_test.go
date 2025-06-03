@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	dktypes "github.com/distribworks/dkron/v4/types"
 	"github.com/google/uuid"
+	dktypes "github.com/sine-io/sinx/types"
 )
 
 func TestPublishExecute(t *testing.T) {

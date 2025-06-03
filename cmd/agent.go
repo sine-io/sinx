@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/distribworks/dkron/v4/dkron"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sine-io/sinx/dkron"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

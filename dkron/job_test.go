@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/distribworks/dkron/v4/ntime"
-	"github.com/distribworks/dkron/v4/plugin"
-	proto "github.com/distribworks/dkron/v4/types"
 	"github.com/hashicorp/serf/testutil"
+	"github.com/sine-io/sinx/ntime"
+	"github.com/sine-io/sinx/plugin"
+	proto "github.com/sine-io/sinx/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
