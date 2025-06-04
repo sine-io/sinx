@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/sine-io/sinx/cmd/flagset"
-	sconfig "github.com/sine-io/sinx/internal/config"
-	slogging "github.com/sine-io/sinx/logging"
+	sxflagset "github.com/sine-io/sinx/cmd/flagset"
+	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxlogging "github.com/sine-io/sinx/logging"
 )
 
 var (
@@ -17,8 +18,8 @@ var (
 	rpcAddr    string
 	ip         string
 	initErrors []error
-
-	GlobalCfg = sconfig.DefaultConfig() // GlobalCfg holds the global configuration for the application
+	logger     zerolog.Logger
+	cfg        = sxconfig.DefaultConfig()
 )
 
 func init() {
@@ -26,7 +27,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
 	// add log flags to root command.
-	rootCmd.Flags().AddFlagSet(flagset.LogFlagSet(GlobalCfg))
+	rootCmd.Flags().AddFlagSet(sxflagset.LogFlagSet(cfg))
 	_ = viper.BindPFlags(rootCmd.Flags())
 
 	// cobra.OnFinalize()
@@ -69,7 +70,7 @@ func initConfig() {
 		initErrors = append(initErrors, fmt.Errorf("no valid config found: Applying default values. Error: %s", err))
 	}
 
-	if err := viper.Unmarshal(GlobalCfg); err != nil {
+	if err := viper.Unmarshal(cfg); err != nil {
 		initErrors = append(initErrors, fmt.Errorf("error unmarshalling config. Error: %s", err))
 	}
 
@@ -84,16 +85,17 @@ func initConfig() {
 	} else {
 		tags = viper.GetStringMapString("tags")
 	}
-	GlobalCfg.Tags = tags
+	cfg.Tags = tags
 
-	// logging.L will be initialized with the global configuration
-	slogging.GetLogger(GlobalCfg)
+	// initialized logger used in the cmd package
+	// logging.L also initialized
+	logger = sxlogging.GetLogger(cfg)
 
 	if len(initErrors) > 0 {
 		for _, err := range initErrors {
-			slogging.L.Error().Err(err).Msg("Initialization error")
+			logger.Error().Err(err).Msg("Initialization error")
 		}
 	} else {
-		slogging.L.Info().Msg("Configuration loaded successfully")
+		logger.Info().Msg("Configuration loaded successfully")
 	}
 }

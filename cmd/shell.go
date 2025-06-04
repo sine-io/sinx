@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"github.com/hashicorp/go-plugin"
-	dkplugin "github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/plugin/shell"
 	"github.com/spf13/cobra"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxshell "github.com/sine-io/sinx/plugin/shell"
 )
 
 func init() {
@@ -18,9 +19,9 @@ var shellCmd = &cobra.Command{
 	Long:   ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		plugin.Serve(&plugin.ServeConfig{
-			HandshakeConfig: dkplugin.Handshake,
+			HandshakeConfig: sxplugin.Handshake,
 			Plugins: map[string]plugin.Plugin{
-				"executor": &dkplugin.ExecutorPlugin{Executor: &shell.Shell{}},
+				"executor": &sxplugin.ExecutorPlugin{Executor: &sxshell.Shell{}},
 			},
 
 			// A non-nil value here enables gRPC serving for this plugin...

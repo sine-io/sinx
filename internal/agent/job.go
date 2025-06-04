@@ -1,4 +1,4 @@
-package dkron
+package agent
 
 import (
 	"errors"
@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/sine-io/sinx/extcron"
-	"github.com/sine-io/sinx/ntime"
-	splugin "github.com/sine-io/sinx/plugin"
-	sproto "github.com/sine-io/sinx/types"
+	sxextcron "github.com/sine-io/sinx/extcron"
+	sxntime "github.com/sine-io/sinx/ntime"
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -85,10 +85,10 @@ type Job struct {
 	ErrorCount int `json:"error_count"`
 
 	// Last time this job executed successfully.
-	LastSuccess ntime.NullableTime `json:"last_success"`
+	LastSuccess sxntime.NullableTime `json:"last_success"`
 
 	// Last time this job failed.
-	LastError ntime.NullableTime `json:"last_error"`
+	LastError sxntime.NullableTime `json:"last_error"`
 
 	// Is this job disabled?
 	Disabled bool `json:"disabled"`
@@ -115,7 +115,7 @@ type Job struct {
 	ParentJob string `json:"parent_job"`
 
 	// Processors to use for this job.
-	Processors map[string]plugin.Config `json:"processors"`
+	Processors map[string]sxplugin.Config `json:"processors"`
 
 	// Concurrency policy for this job (allow, forbid).
 	Concurrency string `json:"concurrency"`
@@ -124,7 +124,7 @@ type Job struct {
 	Executor string `json:"executor"`
 
 	// Configuration arguments for the specific executor.
-	ExecutorConfig plugin.ExecutorPluginConfig `json:"executor_config"`
+	ExecutorConfig sxplugin.ExecutorPluginConfig `json:"executor_config"`
 
 	// Computed job status.
 	Status string `json:"status"`
@@ -136,13 +136,13 @@ type Job struct {
 	Ephemeral bool `json:"ephemeral"`
 
 	// The job will not be executed after this time.
-	ExpiresAt ntime.NullableTime `json:"expires_at"`
+	ExpiresAt sxntime.NullableTime `json:"expires_at"`
 
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // NewJobFromProto create a new Job from a PB Job struct
-func NewJobFromProto(in *proto.Job, logger *logrus.Entry) *Job {
+func NewJobFromProto(in *sxproto.Job, logger zerolog.Logger) *Job {
 	job := &Job{
 		ID:             in.Name,
 		Name:           in.Name,
@@ -180,7 +180,7 @@ func NewJobFromProto(in *proto.Job, logger *logrus.Entry) *Job {
 		job.ExpiresAt.Set(t)
 	}
 
-	procs := make(map[string]plugin.Config)
+	procs := make(map[string]sxplugin.Config)
 	for k, v := range in.Processors {
 		if len(v.Config) == 0 {
 			v.Config = make(map[string]string)
@@ -193,14 +193,14 @@ func NewJobFromProto(in *proto.Job, logger *logrus.Entry) *Job {
 }
 
 // ToProto return the corresponding representation of this Job in proto struct
-func (j *Job) ToProto() *proto.Job {
-	lastSuccess := &proto.Job_NullableTime{
+func (j *Job) ToProto() *sxproto.Job {
+	lastSuccess := &sxproto.Job_NullableTime{
 		HasValue: j.LastSuccess.HasValue(),
 	}
 	if j.LastSuccess.HasValue() {
 		lastSuccess.Time = timestamppb.New(j.LastSuccess.Get())
 	}
-	lastError := &proto.Job_NullableTime{
+	lastError := &sxproto.Job_NullableTime{
 		HasValue: j.LastError.HasValue(),
 	}
 	if j.LastError.HasValue() {
@@ -209,18 +209,18 @@ func (j *Job) ToProto() *proto.Job {
 
 	next := timestamppb.New(j.Next)
 
-	expiresAt := &proto.Job_NullableTime{
+	expiresAt := &sxproto.Job_NullableTime{
 		HasValue: j.ExpiresAt.HasValue(),
 	}
 	if j.ExpiresAt.HasValue() {
 		expiresAt.Time = timestamppb.New(j.ExpiresAt.Get())
 	}
 
-	processors := make(map[string]*proto.PluginConfig)
+	processors := make(map[string]*sxproto.PluginConfig)
 	for k, v := range j.Processors {
-		processors[k] = &proto.PluginConfig{Config: v}
+		processors[k] = &sxproto.PluginConfig{Config: v}
 	}
-	return &proto.Job{
+	return &sxproto.Job{
 		Name:           j.Name,
 		Displayname:    j.DisplayName,
 		Timezone:       j.Timezone,
@@ -253,15 +253,15 @@ func (j *Job) Run() {
 	// As this function should comply with the Job interface of the cron package we will use
 	// the agent property on execution, this is why it need to check if it's set and otherwise fail.
 	if j.Agent == nil {
-		j.logger.Fatal("job: agent not set")
+		j.logger.Fatal().Msg("job: agent not set")
 	}
 
 	// Check if it's runnable
 	if j.isRunnable(j.logger) {
-		j.logger.WithFields(logrus.Fields{
-			"job":      j.Name,
-			"schedule": j.Schedule,
-		}).Debug("job: Run job")
+		j.logger.Debug().
+			Str("job", j.Name).
+			Str("schedule", j.Schedule).
+			Msg("job: Running job")
 
 		cronInspect.Set(j.Name, j)
 
@@ -269,7 +269,9 @@ func (j *Job) Run() {
 		ex := NewExecution(j.Name)
 
 		if _, err := j.Agent.Run(j.Name, ex); err != nil {
-			j.logger.WithError(err).Error("job: Error running job")
+			j.logger.Error().
+				Err(err).
+				Msg("job: Error running job")
 		}
 	}
 }
@@ -366,7 +368,7 @@ func (j *Job) scheduleHash() string {
 // GetNext returns the job's next schedule from now
 func (j *Job) GetNext() (time.Time, error) {
 	if j.Schedule != "" {
-		s, err := extcron.Parse(j.scheduleHash())
+		s, err := sxextcron.Parse(j.scheduleHash())
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -376,33 +378,41 @@ func (j *Job) GetNext() (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func (j *Job) isRunnable(logger *logrus.Entry) bool {
+func (j *Job) isRunnable(logger zerolog.Logger) bool {
 	if j.Disabled || (j.ExpiresAt.HasValue() && time.Now().After(j.ExpiresAt.Get())) {
-		logger.WithField("job", j.Name).
-			Debug("job: Skipping execution because job is disabled or expired")
+		logger.Debug().
+			Str("job", j.Name).
+			Msg("job: Skipping execution because job is disabled or expired")
+
 		return false
 	}
 
 	if j.Agent.GlobalLock {
-		logger.WithField("job", j.Name).
-			Warning("job: Skipping execution because active global lock")
+		logger.Warn().
+			Str("job", j.Name).
+			Msg("job: Skipping execution because active global lock")
+
 		return false
 	}
 
 	if j.Concurrency == ConcurrencyForbid {
 		exs, err := j.Agent.GetActiveExecutions()
 		if err != nil {
-			logger.WithError(err).Error("job: Error quering for running executions")
+			logger.Error().
+				Err(err).
+				Msg("job: Error querying for running executions")
+
 			return false
 		}
 
 		for _, e := range exs {
 			if e.JobName == j.Name {
-				logger.WithFields(logrus.Fields{
-					"job":         j.Name,
-					"concurrency": j.Concurrency,
-					"job_status":  j.Status,
-				}).Info("job: Skipping concurrent execution")
+				logger.Info().
+					Str("job", j.Name).
+					Str("concurrency", j.Concurrency).
+					Str("job_status", e.Status).
+					Msg("job: Skipping concurrent execution")
+
 				return false
 			}
 		}
@@ -427,7 +437,7 @@ func (j *Job) Validate() error {
 
 	// Validate schedule, allow empty schedule if parent job set.
 	if j.Schedule != "" || j.ParentJob == "" {
-		if _, err := extcron.Parse(j.scheduleHash()); err != nil {
+		if _, err := sxextcron.Parse(j.scheduleHash()); err != nil {
 			return fmt.Errorf("%s: %s", ErrScheduleParse.Error(), err)
 		}
 	}

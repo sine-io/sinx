@@ -25,12 +25,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
 	"github.com/soheilhy/cmux"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
-	sconfig "github.com/sine-io/sinx/internal/config"
-	splugin "github.com/sine-io/sinx/plugin"
-	sproto "github.com/sine-io/sinx/types"
+	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 const (
@@ -65,10 +62,10 @@ type Node = serf.Member
 // Agent is the main struct that represents a dkron agent
 type Agent struct {
 	// ProcessorPlugins maps processor plugins
-	ProcessorPlugins map[string]splugin.Processor
+	ProcessorPlugins map[string]sxplugin.Processor
 
 	//ExecutorPlugins maps executor plugins
-	ExecutorPlugins map[string]splugin.Executor
+	ExecutorPlugins map[string]sxplugin.Executor
 
 	// HTTPTransport is a swappable interface for the HTTP server interface
 	HTTPTransport Transport
@@ -91,7 +88,7 @@ type Agent struct {
 	ProAppliers        LogAppliers
 
 	serf        *serf.Serf
-	Config      *sconfig.Config
+	config      *sxconfig.Config
 	eventCh     chan serf.Event
 	sched       *Scheduler
 	ready       bool
@@ -131,12 +128,12 @@ type Agent struct {
 
 // ProcessorFactory is a function type that creates a new instance
 // of a processor.
-type ProcessorFactory func() (plugin.Processor, error)
+type ProcessorFactory func() (sxplugin.Processor, error)
 
 // Plugins struct to store loaded plugins of each type
 type Plugins struct {
-	Processors map[string]plugin.Processor
-	Executors  map[string]plugin.Executor
+	Processors map[string]sxplugin.Processor
+	Executors  map[string]sxplugin.Executor
 }
 
 // AgentOption type that defines agent options
@@ -144,7 +141,7 @@ type AgentOption func(agent *Agent)
 
 // NewAgent returns a new Agent instance capable of starting
 // and running a Dkron instance.
-func NewAgent(config *sconfig.Config, options ...AgentOption) *Agent {
+func NewAgent(config *sxconfig.Config, options ...AgentOption) *Agent {
 	agent := &Agent{
 		Config:       config,
 		retryJoinCh:  make(chan error),
@@ -801,11 +798,12 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 	}
 
 	for _, peer := range peers {
-		a.logger.WithField("peer", peer).Debug("Checking peer")
+		a.logger.Debug().Str("peer", peer).Msg("Checking peer")
 		conn, err := net.DialTimeout("tcp", peer, 1*time.Second)
 		if err == nil {
 			conn.Close()
-			a.logger.WithField("peer", peer).Debug("Found good peer")
+			a.logger.Debug().Str("peer", peer).Msg("Found good peer")
+
 			return peer, nil
 		}
 	}
@@ -813,28 +811,28 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 }
 
 func (a *Agent) startReporter() {
-	if a.config.DisableUsageStats || a.config.DevMode {
-		a.logger.Info("agent: usage report client disabled")
+	if a.Config.DisableUsageStats || a.Config.DevMode {
+		a.logger.Info().Msg("agent: usage report client disabled")
 		return
 	}
 
-	clusterID, err := a.config.Hash()
+	clusterID, err := a.Config.Hash()
 	if err != nil {
-		a.logger.Warn("agent: unable to hash the service configuration:", err.Error())
+		a.logger.Warn().Msgf("agent: unable to hash the service configuration:", err.Error())
 		return
 	}
 
 	go func() {
 		serverID, _ := uuid.GenerateUUID()
-		a.logger.Info(fmt.Sprintf("agent: registering usage stats for cluster ID '%s'", clusterID))
+		a.logger.Info().Msgf("agent: registering usage stats for cluster ID '%s'", clusterID)
 
 		if err := client.StartReporter(context.Background(), client.Options{
 			ClusterID: clusterID,
 			ServerID:  serverID,
-			URL:       "https://stats.dkron.io",
+			URL:       "https://stats.xxxxxxx.io",
 			Version:   fmt.Sprintf("%s %s", Name, Version),
 		}); err != nil {
-			a.logger.Warn("agent: unable to create the usage report client:", err.Error())
+			a.logger.Warn().Msgf("agent: unable to create the usage report client:", err.Error())
 		}
 	}()
 }

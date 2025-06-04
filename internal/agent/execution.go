@@ -1,4 +1,4 @@
-package dkron
+package agent
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	proto "github.com/sine-io/sinx/types"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const defaultRetryInterval = 500 * time.Millisecond
@@ -53,7 +53,7 @@ func NewExecution(jobName string) *Execution {
 }
 
 // NewExecutionFromProto maps a proto.ExecutionDoneRequest to an Execution object
-func NewExecutionFromProto(e *proto.Execution) *Execution {
+func NewExecutionFromProto(e *sxproto.Execution) *Execution {
 	startedAt := e.GetStartedAt().AsTime()
 	finishedAt := e.GetFinishedAt().AsTime()
 	return &Execution{
@@ -71,10 +71,10 @@ func NewExecutionFromProto(e *proto.Execution) *Execution {
 
 // ToProto returns the protobuf struct corresponding to
 // the representation of the current execution.
-func (e *Execution) ToProto() *proto.Execution {
+func (e *Execution) ToProto() *sxproto.Execution {
 	startedAt := timestamppb.New(e.StartedAt)
 	finishedAt := timestamppb.New(e.FinishedAt)
-	return &proto.Execution{
+	return &sxproto.Execution{
 		JobName:    e.JobName,
 		Success:    e.Success,
 		Output:     []byte(e.Output),

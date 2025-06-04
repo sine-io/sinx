@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	"github.com/ryanuber/columnize"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxrpc "github.com/sine-io/sinx/internal/rpc"
 )
 
 func init() {
@@ -18,13 +20,13 @@ func init() {
 	rootCmd.AddCommand(raftCmd)
 }
 
-// versionCmd represents the version command
+// raftCmd represents the raft command
 var raftCmd = &cobra.Command{
 	Use:   "raft [command]",
 	Short: "Command to perform some raft operations",
 	Long:  ``,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		ipa, err := dkron.ParseSingleIPTemplate(rpcAddr)
+		ipa, err := sxconfig.ParseSingleIPTemplate(rpcAddr)
 		if err != nil {
 			return err
 		}
@@ -39,8 +41,7 @@ var raftListCmd = &cobra.Command{
 	Short: "Command to list raft peers",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		log := logrus.NewEntry(logrus.New())
-		gc := dkron.NewGRPCClient(nil, nil, log)
+		gc := sxrpc.NewGRPCClient(nil, nil, logger)
 
 		reply, err := gc.RaftGetConfiguration(ip)
 		if err != nil {
@@ -58,7 +59,7 @@ var raftListCmd = &cobra.Command{
 				s.Node, s.Id, s.Address, state, s.Voter))
 		}
 
-		fmt.Println(columnize.SimpleFormat(result))
+		fmt.Println(columnize.SimpleFormat(result)) // TODO: use logger?
 
 		return nil
 	},
@@ -71,13 +72,12 @@ var raftRemovePeerCmd = &cobra.Command{
 	Short: "Command to remove a peer from raft",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		log := logrus.NewEntry(logrus.New())
-		gc := dkron.NewGRPCClient(nil, nil, log)
+		gc := sxrpc.NewGRPCClient(nil, nil, logger)
 
 		if err := gc.RaftRemovePeerByID(ip, peerID); err != nil {
 			return err
 		}
-		log.Info("Peer removed")
+		logger.Info().Msg("Peer removed")
 
 		return nil
 	},

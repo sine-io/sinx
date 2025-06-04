@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	"github.com/sine-io/sinx/internal/config"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 // NotificationFlagSet creates all of our notification flags.
-func NotificationFlagSet(cfg *config.Config) *flag.FlagSet {
+func NotificationFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("notification flagset", flag.ContinueOnError)
 
 	cmdFlags.String("mail-host", "", "Mail server host address to use for notifications")

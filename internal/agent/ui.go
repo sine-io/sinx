@@ -1,4 +1,4 @@
-package ui
+package agent
 
 import (
 	"embed"
@@ -33,19 +33,19 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 
 	assets, err := fs.Sub(uiDist, "ui-dist")
 	if err != nil {
-		h.logger.Fatal(err)
+		h.logger.Fatal().Err(err)
 	}
 	a, err := assets.Open("index.html")
 	if err != nil {
-		h.logger.Fatal(err)
+		h.logger.Fatal().Err(err)
 	}
 	b, err := io.ReadAll(a)
 	if err != nil {
-		h.logger.Fatal(err)
+		h.logger.Fatal().Err(err)
 	}
 	t, err := template.New("index.html").Parse(string(b))
 	if err != nil {
-		h.logger.Fatal(err)
+		h.logger.Fatal().Err(err)
 	}
 	h.Engine.SetHTMLTemplate(t)
 
@@ -58,7 +58,7 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 		} else {
 			jobs, err := h.agent.Store.GetJobs(nil)
 			if err != nil {
-				h.logger.Error(err)
+				h.logger.Error().Err(err)
 			}
 			var (
 				totalJobs                                   = len(jobs)
@@ -76,7 +76,7 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 			l, err := h.agent.leaderMember()
 			ln := "no leader"
 			if err != nil {
-				h.logger.Error(err)
+				h.logger.Error().Err(err)
 			} else {
 				ln = l.Name
 			}

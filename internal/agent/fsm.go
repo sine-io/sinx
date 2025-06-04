@@ -1,13 +1,13 @@
-package repository
+package agent
 
 import (
 	"io"
 
 	"github.com/hashicorp/raft"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
-	dkronpb "github.com/sine-io/sinx/types"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 // Raft finite state machine (FSM) is used to apply Raft log entries
@@ -42,11 +42,11 @@ type dkronFSM struct {
 
 	// proAppliers holds the set of pro only LogAppliers
 	proAppliers LogAppliers
-	logger      *logrus.Entry
+	logger      zerolog.Logger
 }
 
 // NewFSM is used to construct a new FSM with a blank state
-func newFSM(store Storage, logAppliers LogAppliers, logger *logrus.Entry) *dkronFSM {
+func newFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *dkronFSM {
 	return &dkronFSM{
 		store:       store,
 		proAppliers: logAppliers,
@@ -59,7 +59,7 @@ func (d *dkronFSM) Apply(l *raft.Log) interface{} {
 	buf := l.Data
 	msgType := MessageType(buf[0])
 
-	d.logger.WithField("command", msgType).Debug("fsm: received command")
+	d.logger.Debug().Any("command", msgType).Msg("fsm: received command")
 
 	switch msgType {
 	case SetJobType:
@@ -81,7 +81,7 @@ func (d *dkronFSM) Apply(l *raft.Log) interface{} {
 }
 
 func (d *dkronFSM) applySetJob(buf []byte) interface{} {
-	var pj dkronpb.Job
+	var pj sxproto.Job
 	if err := proto.Unmarshal(buf, &pj); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (d *dkronFSM) applySetJob(buf []byte) interface{} {
 }
 
 func (d *dkronFSM) applyDeleteJob(buf []byte) interface{} {
-	var djr dkronpb.DeleteJobRequest
+	var djr sxproto.DeleteJobRequest
 	if err := proto.Unmarshal(buf, &djr); err != nil {
 		return err
 	}
@@ -105,22 +105,23 @@ func (d *dkronFSM) applyDeleteJob(buf []byte) interface{} {
 }
 
 func (d *dkronFSM) applyExecutionDone(buf []byte) interface{} {
-	var execDoneReq dkronpb.ExecutionDoneRequest
+	var execDoneReq sxproto.ExecutionDoneRequest
 	if err := proto.Unmarshal(buf, &execDoneReq); err != nil {
 		return err
 	}
 	execution := NewExecutionFromProto(execDoneReq.Execution)
 
-	d.logger.WithField("execution", execution.Key()).
-		WithField("output", string(execution.Output)).
-		Debug("fsm: Setting execution")
+	d.logger.Debug().
+		Any("execution", execution.Key()).
+		Str("output", string(execution.Output)).
+		Msg("fsm: Setting execution")
 	_, err := d.store.SetExecutionDone(execution)
 
 	return err
 }
 
 func (d *dkronFSM) applySetExecution(buf []byte) interface{} {
-	var pbex dkronpb.Execution
+	var pbex sxproto.Execution
 	if err := proto.Unmarshal(buf, &pbex); err != nil {
 		return err
 	}

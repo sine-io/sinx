@@ -1,4 +1,4 @@
-package dkron
+package agent
 
 import (
 	"context"
@@ -9,8 +9,10 @@ import (
 
 	"github.com/armon/go-metrics"
 	"github.com/robfig/cron/v3"
-	"github.com/sine-io/sinx/extcron"
+	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
+
+	sxextcron "github.com/sine-io/sinx/extcron"
 )
 
 var (
@@ -33,14 +35,14 @@ type Scheduler struct {
 	mu      sync.RWMutex
 	Cron    *cron.Cron
 	started bool
-	logger  *logrus.Entry
+	logger  zerolog.Logger
 }
 
 // NewScheduler creates a new Scheduler instance
-func NewScheduler(logger *logrus.Entry) *Scheduler {
+func NewScheduler(logger zerolog.Logger) *Scheduler {
 	schedulerStarted.Set(0)
 	return &Scheduler{
-		Cron:    cron.New(cron.WithParser(extcron.NewParser())),
+		Cron:    cron.New(cron.WithParser(sxextcron.NewParser())),
 		started: false,
 		logger:  logger,
 	}
@@ -79,7 +81,7 @@ func (s *Scheduler) Stop() context.Context {
 
 	ctx := s.Cron.Stop()
 	if s.started {
-		s.logger.Debug("scheduler: Stopping scheduler")
+		s.logger.Debug().Msg("scheduler: Stopping scheduler")
 		s.started = false
 
 		// expvars
@@ -98,7 +100,7 @@ func (s *Scheduler) Restart(jobs []*Job, agent *Agent) {
 	s.Stop()
 
 	if err := s.Start(jobs, agent); err != nil {
-		s.logger.Fatal(err)
+		s.logger.Fatal().Err(err)
 	}
 }
 
@@ -106,7 +108,8 @@ func (s *Scheduler) Restart(jobs []*Job, agent *Agent) {
 func (s *Scheduler) ClearCron() {
 	for _, e := range s.Cron.Entries() {
 		if j, ok := e.Job.(*Job); !ok {
-			s.logger.Errorf("scheduler: Failed to cast job to *Job found type %T and removing it", e.Job)
+			s.logger.Error().
+				Msgf("scheduler: Failed to cast job to *Job found type %T and removing it", e.Job)
 			s.Cron.Remove(e.ID)
 		} else {
 			s.RemoveJob(j.Name)
@@ -127,7 +130,8 @@ func (s *Scheduler) Started() bool {
 func (s *Scheduler) GetEntryJob(jobName string) (EntryJob, bool) {
 	for _, e := range s.Cron.Entries() {
 		if j, ok := e.Job.(*Job); !ok {
-			s.logger.Errorf("scheduler: Failed to cast job to *Job found type %T", e.Job)
+			s.logger.Error().
+				Msgf("scheduler: Failed to cast job to *Job found type %T", e.Job)
 		} else {
 			j.logger = s.logger
 			if j.Name == jobName {
@@ -151,6 +155,8 @@ func (s *Scheduler) AddJob(job *Job) error {
 	if job.Disabled || job.ParentJob != "" {
 		return nil
 	}
+
+	s.logger.Debug()
 
 	s.logger.WithFields(logrus.Fields{
 		"job": job.Name,

@@ -26,7 +26,7 @@ func (*HCLogAdapter) Trace(_ string, _ ...interface{}) {}
 
 // Debug logging level message
 func (a *HCLogAdapter) Debug(msg string, args ...interface{}) {
-	a.CreateEntry(args).Debug(msg)
+	a.CreateEntry(args).Debug().Msg(msg)
 }
 
 // Info logging level message

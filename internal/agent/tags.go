@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/hashicorp/serf/serf"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 )
 
 // cleanTags takes the tag spec and returns strictly key:value pairs
 // along with the lowest cardinality specified
-func cleanTags(tags map[string]string, logger *logrus.Entry) (map[string]string, int) {
+func cleanTags(tags map[string]string, logger zerolog.Logger) (map[string]string, int) {
 	cardinality := int(^uint(0) >> 1) // MaxInt
 
 	cleanTags := make(map[string]string, len(tags))
@@ -27,7 +27,7 @@ func cleanTags(tags map[string]string, logger *logrus.Entry) (map[string]string,
 			if err != nil {
 				// Tag value is malformed
 				tagCard = 0
-				logger.Errorf("improper cardinality specified for tag %s: %v", k, vparts[1])
+				logger.Error().Msgf("improper cardinality specified for tag %s: %v", k, vparts[1])
 			}
 
 			if tagCard < cardinality {

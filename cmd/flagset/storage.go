@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	"github.com/sine-io/sinx/internal/config"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 // StorageFlagSet creates all of our storage flags.
-func StorageFlagSet(cfg *config.Config) *flag.FlagSet {
+func StorageFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("storage flagset", flag.ContinueOnError)
 
 	cmdFlags.String("data-dir", cfg.DataDir,

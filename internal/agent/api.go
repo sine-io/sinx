@@ -1,4 +1,4 @@
-package api
+package agent
 
 import (
 	"encoding/json"
@@ -13,10 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sine-io/sinx/types"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	status "google.golang.org/grpc/status"
+
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -34,11 +35,11 @@ type HTTPTransport struct {
 	Engine *gin.Engine
 
 	agent  *Agent
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // NewTransport creates an HTTPTransport with a bound agent.
-func NewTransport(a *Agent, log *logrus.Entry) *HTTPTransport {
+func NewTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
 	return &HTTPTransport{
 		agent:  a,
 		logger: log,
@@ -64,13 +65,11 @@ func (h *HTTPTransport) ServeHTTP() {
 		h.UI(rootPath, false)
 	}
 
-	h.logger.WithFields(logrus.Fields{
-		"address": h.agent.config.HTTPAddr,
-	}).Info("api: Running HTTP server")
+	h.logger.Info().Str("address", h.agent.config.HTTPAddr).Msg("api: Running HTTP server")
 
 	go func() {
 		if err := h.Engine.Run(h.agent.config.HTTPAddr); err != nil {
-			h.logger.WithError(err).Error("api: Error starting HTTP server")
+			h.logger.Error().Err(err).Msg("api: Error starting HTTP server")
 		}
 	}()
 }
@@ -171,7 +170,7 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		h.logger.WithError(err).Error("api: Unable to get jobs, store not reachable.")
+		h.logger.Error().Err(err).Msg("api: Unable to get jobs, store not reachable.")
 		return
 	}
 
@@ -201,7 +200,7 @@ func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 
 	job, err := h.agent.Store.GetJob(jobName, nil)
 	if err != nil {
-		h.logger.Error(err)
+		h.logger.Error().Err(err)
 	}
 	if job == nil {
 		c.AbortWithStatus(http.StatusNotFound)
@@ -224,7 +223,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 		// Parse values from JSON
 		if err := c.BindJSON(&job); err != nil {
 			_, _ = c.Writer.WriteString(fmt.Sprintf("Unable to parse payload: %s.", err))
-			h.logger.Error(err)
+			h.logger.Error().Err(err)
 			return
 		}
 		// Get the owner from the context, if it exists
@@ -258,7 +257,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	if _, exists := c.GetQuery("runoncreate"); exists {
 		go func() {
 			if _, err := h.agent.GRPCClient.RunJob(job.Name); err != nil {
-				h.logger.WithError(err).Error("api: Unable to run job.")
+				h.logger.Error().Err(err).Msg("api: Unable to run job.")
 			}
 		}()
 	}
@@ -364,7 +363,7 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 	if err == buntdb.ErrNotFound {
 		executions = make([]*Execution, 0)
 	} else if err != nil {
-		h.logger.Error(err)
+		h.logger.Error().Err(err)
 		return
 	}
 
@@ -404,7 +403,7 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	)
 
 	if err != nil {
-		h.logger.Error(err)
+		h.logger.Error().Err(err)
 		return
 	}
 
@@ -417,10 +416,10 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 }
 
 func (h *HTTPTransport) membersHandler(c *gin.Context) {
-	mems := []*types.Member{}
+	mems := []*sxproto.Member{}
 	for _, m := range h.agent.serf.Members() {
 		id, _ := uuid.GenerateUUID()
-		mid := &types.Member{
+		mid := &sxproto.Member{
 			Member:     m,
 			Id:         id,
 			StatusText: m.Status.String(),

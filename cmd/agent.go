@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/sine-io/sinx/cmd/flagset"
 	"os"
 	"os/signal"
 	"strings"
@@ -10,17 +9,17 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	sagent "github.com/sine-io/sinx/internal/agent"
-	splugin "github.com/sine-io/sinx/plugin"
+	sxflagset "github.com/sine-io/sinx/cmd/flagset"
+	sxagent "github.com/sine-io/sinx/internal/agent"
+	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 var (
 	ShutdownCh chan (struct{})
-	agent      *sagent.Agent
+	agent      *sxagent.Agent
 )
 
 const (
@@ -31,12 +30,12 @@ const (
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().AddFlagSet(flagset.NodeFlagSet(GlobalCfg))
-	agentCmd.Flags().AddFlagSet(flagset.NetworkFlagSet(GlobalCfg))
-	agentCmd.Flags().AddFlagSet(flagset.ClusterFlagSet(GlobalCfg))
-	agentCmd.Flags().AddFlagSet(flagset.StorageFlagSet(GlobalCfg))
-	agentCmd.Flags().AddFlagSet(flagset.NotificationFlagSet(GlobalCfg))
-	agentCmd.Flags().AddFlagSet(flagset.ObservabilityFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.NetworkFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.NodeFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.ClusterFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.StorageFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.NotificationFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.ObservabilityFlagSet(cfg))
 
 	_ = viper.BindPFlags(agentCmd.Flags())
 }
@@ -61,22 +60,22 @@ func agentRun(args ...string) error {
 	// sine, 2025.5.30
 	// This log statement helps avoid compiler warnings about unused parameters
 	// as 'args' is not used elsewhere in the function
-	log.Debugf("agentRun called with args: %v", args)
+	logger.Debug().Msgf("agentRun called with args: %v", args)
 
 	// Make sure we clean up any managed plugins at the end of this
-	p := &splugin.Plugins{
-		LogLevel: GlobalCfg.LogLevel,
-		NodeName: GlobalCfg.NodeName,
+	p := &sxplugin.Plugins{
+		LogLevel: cfg.LogLevel,
+		NodeName: cfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {
-		log.Fatal(err)
+		logger.Fatal().Err(err).Send()
 	}
-	plugins := splugin.Plugins{
+	plugins := sxagent.Plugins{
 		Processors: p.Processors,
 		Executors:  p.Executors,
 	}
 
-	agent = sagent.NewAgent(GlobalCfg, sagent.WithPlugins(plugins))
+	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
 	if err := agent.Start(); err != nil {
 		return err
 	}
@@ -101,12 +100,12 @@ WAIT:
 	case s := <-signalCh:
 		sig = s
 	case err := <-agent.RetryJoinCh():
-		log.WithError(err).Error("agent: Retry join failed")
+		logger.Error().Err(err).Msg("agent: Retry join failed")
 		return 1
 	case <-ShutdownCh:
 		sig = os.Interrupt
 	}
-	log.Infof("Caught signal: %v", sig)
+	logger.Info().Msgf("Caught signal: %v", sig)
 
 	// Check if this is a SIGHUP
 	if sig == syscall.SIGHUP {
@@ -120,10 +119,10 @@ WAIT:
 	}
 
 	// Attempt a graceful leave
-	log.Info("agent: Gracefully shutting down agent...")
+	logger.Info().Msg("agent: Gracefully shutting down agent...")
 	go func() {
 		if err := agent.Stop(); err != nil {
-			log.WithError(err).Error("unable to stop agent")
+			logger.Error().Err(err).Msg("unable to stop agent")
 			return
 		}
 	}()
@@ -131,9 +130,9 @@ WAIT:
 	gracefulCh := make(chan struct{})
 
 	for {
-		log.Info("Waiting for jobs to finish...")
+		logger.Info().Msg("Waiting for jobs to finish...")
 		if agent.GetRunningJobs() < 1 {
-			log.Info("No jobs left. Exiting.")
+			logger.Info().Msg("No jobs left. Exiting.")
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -156,10 +155,10 @@ WAIT:
 
 // handleReload is invoked when we should reload our configs, e.g. SIGHUP
 func handleReload() {
-	log.Info("Reloading configuration...")
+	logger.Info().Msg("Reloading configuration...")
 	initConfig()
 	//Config reloading will also reload Notification settings
-	agent.UpdateTags(config.Tags)
+	agent.UpdateTags(cfg.Tags)
 }
 
 // UnmarshalTags is a utility function which takes a slice of strings in

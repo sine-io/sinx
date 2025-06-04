@@ -1,4 +1,4 @@
-package dkron
+package agent
 
 import (
 	"bytes"
@@ -14,21 +14,23 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jordan-wright/email"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 // Notifier represents a new notification to be sent by any of the available notificators
 type notifier struct {
-	Config         *Config
+	Config         *sxconfig.Config
 	Job            *Job
 	Execution      *Execution
 	ExecutionGroup []*Execution
 
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // NewNotifier returns a new notifier
-func SendPreNotifications(config *Config, execution *Execution, exGroup []*Execution, job *Job, logger *logrus.Entry) error {
+func SendPreNotifications(config *sxconfig.Config, execution *Execution, exGroup []*Execution, job *Job, logger zerolog.Logger) error {
 	var werr error
 
 	n := &notifier{
@@ -54,7 +56,7 @@ func SendPreNotifications(config *Config, execution *Execution, exGroup []*Execu
 }
 
 // Send sends the notifications using any configured method
-func SendPostNotifications(config *Config, execution *Execution, exGroup []*Execution, job *Job, logger *logrus.Entry) error {
+func SendPostNotifications(config *sxconfig.Config, execution *Execution, exGroup []*Execution, job *Job, logger zerolog.Logger) error {
 	n := &notifier{
 		logger: logger,
 
@@ -111,7 +113,8 @@ func (n *notifier) report() string {
 func (n *notifier) buildTemplate(templ string) *bytes.Buffer {
 	t, e := template.New("report").Parse(templ)
 	if e != nil {
-		n.logger.WithError(e).Error("notifier: error parsing template")
+		n.logger.Error().Err(e).Msg("notifier: error parsing template")
+
 		return bytes.NewBuffer([]byte("Failed to parse template: " + e.Error()))
 	}
 
@@ -138,7 +141,8 @@ func (n *notifier) buildTemplate(templ string) *bytes.Buffer {
 	out := &bytes.Buffer{}
 	err := t.Execute(out, data)
 	if err != nil {
-		n.logger.WithError(err).Error("notifier: error executing template")
+		n.logger.Error().Err(err).Msg("notifier: error executing template")
+
 		return bytes.NewBuffer([]byte("Failed to execute template:" + err.Error()))
 	}
 	return out
@@ -202,11 +206,12 @@ func (n *notifier) callPreExecutionWebhook() error {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	n.logger.WithFields(logrus.Fields{
-		"status": resp.Status,
-		"header": resp.Header,
-		"body":   string(body),
-	}).Debug("notifier: Pre Webhook call response")
+
+	n.logger.Debug().
+		Str("status", resp.Status).
+		Any("header", resp.Header).
+		Str("body", string(body)).
+		Msg("notifier: Pre Webhook call response")
 
 	return nil
 }
@@ -236,11 +241,12 @@ func (n *notifier) callExecutionWebhook() error {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	n.logger.WithFields(logrus.Fields{
-		"status": resp.Status,
-		"header": resp.Header,
-		"body":   string(body),
-	}).Debug("notifier: Webhook call response")
+
+	n.logger.Debug().
+		Str("status", resp.Status).
+		Any("header", resp.Header).
+		Str("body", string(body)).
+		Msg("notifier: Webhook call response")
 
 	return nil
 }

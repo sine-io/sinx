@@ -1,17 +1,16 @@
-package rpc
+package agent
 
 import (
 	"errors"
-	"github.com/rs/zerolog"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/armon/circbuf"
 	metrics "github.com/armon/go-metrics"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	sagent "github.com/sine-io/sinx/internal/agent"
-	sproto "github.com/sine-io/sinx/types"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -20,14 +19,14 @@ const (
 )
 
 type statusAgentHelper struct {
-	execution *sproto.Execution
-	stream    sproto.Agent_AgentRunServer
+	execution *sxproto.Execution
+	stream    sxproto.Agent_AgentRunServer
 }
 
 func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 	s.execution.Output = b
 	// Send partial execution
-	if err := s.stream.Send(&sproto.AgentRunStream{
+	if err := s.stream.Send(&sxproto.AgentRunStream{
 		Execution: s.execution,
 	}); err != nil {
 		return 0, err
@@ -37,13 +36,13 @@ func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 
 // GRPCAgentServer is the local implementation of the gRPC server interface.
 type GRPCAgentServer struct {
-	sproto.AgentServer
-	agent  *sagent.Agent
+	sxproto.AgentServer
+	agent  *Agent
 	logger zerolog.Logger
 }
 
 // NewGRPCAgentServer creates and returns an instance of a AgentServer implementation
-func NewGRPCAgentServer(agent *sagent.Agent, logger zerolog.Logger) sproto.AgentServer {
+func NewGRPCAgentServer(agent *Agent, logger zerolog.Logger) sxproto.AgentServer {
 	return &GRPCAgentServer{
 		agent:  agent,
 		logger: logger,
@@ -52,7 +51,7 @@ func NewGRPCAgentServer(agent *sagent.Agent, logger zerolog.Logger) sproto.Agent
 
 // AgentRun is called when an agent starts running a job and lasts all execution,
 // the agent will stream execution progress to the server.
-func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.Agent_AgentRunServer) error {
+func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto.Agent_AgentRunServer) error {
 	defer metrics.MeasureSince([]string{"grpc_agent", "agent_run"}, time.Now())
 
 	job := req.Job
@@ -71,7 +70,7 @@ func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.A
 	execution.StartedAt = timestamppb.Now()
 	execution.NodeName = as.agent.Config.NodeName
 
-	if err := stream.Send(&sproto.AgentRunStream{
+	if err := stream.Send(&sxproto.AgentRunStream{
 		Execution: execution,
 	}); err != nil {
 		return err
@@ -85,8 +84,8 @@ func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.A
 	if executor, ok := as.agent.ExecutorPlugins[jex]; ok {
 		as.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
 
-		sagent.RunningExecutions.Store(execution.GetGroup(), execution)
-		out, err := executor.Execute(&sproto.ExecuteRequest{
+		RunningExecutions.Store(execution.GetGroup(), execution)
+		out, err := executor.Execute(&sxproto.ExecuteRequest{
 			JobName: job.Name,
 			Config:  exc,
 		}, &statusAgentHelper{
@@ -119,10 +118,10 @@ func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.A
 	execution.Success = success
 	execution.Output = output.Bytes()
 
-	sagent.RunningExecutions.Delete(execution.GetGroup())
+	RunningExecutions.Delete(execution.GetGroup())
 
 	// Send the final execution
-	if err := stream.Send(&sproto.AgentRunStream{
+	if err := stream.Send(&sxproto.AgentRunStream{
 		Execution: execution,
 	}); err != nil {
 		// In case of error means that maybe the server is gone so fallback to ExecutionDone
@@ -133,7 +132,7 @@ func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.A
 		if err != nil {
 			return err
 		}
-		return as.agent.GRPCClient.ExecutionDone(rpcServer, NewExecutionFromProto(execution))
+		return as.agent.GRPCClient.ExecutionDone(rpcServer, sxscheduler.NewExecutionFromProto(execution))
 	}
 
 	return nil

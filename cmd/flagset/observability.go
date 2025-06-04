@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	"github.com/sine-io/sinx/internal/config"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 // ObservabilityFlagSet creates all of our observability flags.
-func ObservabilityFlagSet(cfg *config.Config) *flag.FlagSet {
+func ObservabilityFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("observability flagset", flag.ContinueOnError)
 
 	cmdFlags.String("dog-statsd-addr", "", "DataDog Agent address")

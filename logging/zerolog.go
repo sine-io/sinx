@@ -10,17 +10,17 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/sine-io/sinx/internal/config"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 var (
 	once       sync.Once
 	initErrors []error
-	L          zerolog.Logger
+	logger     zerolog.Logger
 )
 
 // GetLogger creates the logger instance
-func GetLogger(cfg *config.Config) zerolog.Logger {
+func GetLogger(cfg *sxconfig.Config) zerolog.Logger {
 
 	once.Do(func() {
 		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
@@ -50,19 +50,19 @@ func GetLogger(cfg *config.Config) zerolog.Logger {
 
 		writer := zerolog.MultiLevelWriter(consoleLogger, fileLogger)
 
-		L = zerolog.New(writer).
+		logger = zerolog.New(writer).
 			Level(logLevel).
 			With().Str("node", cfg.NodeName). // Add node information to the logger
 			Timestamp().
 			Logger()
 
 		for _, err := range initErrors {
-			L.Error().Err(err).Msg("Logger initialization error")
+			logger.Error().Err(err).Msg("Logger initialization error")
 		}
 		initErrors = nil // Clear errors after logging them
 
-		L.Hook(&LogSplitter{})
+		logger.Hook(&LogSplitter{})
 	})
 
-	return L
+	return logger
 }

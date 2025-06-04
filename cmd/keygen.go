@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +30,7 @@ var keygenCmd = &cobra.Command{
 			return errors.New("couldn't read enough entropy. Generate more entropy")
 		}
 
-		log.Info(base64.StdEncoding.EncodeToString(key))
+		logger.Info().Msg(base64.StdEncoding.EncodeToString(key))
 		return nil
 	},
 }

@@ -1,8 +1,10 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxrpc "github.com/sine-io/sinx/internal/rpc"
 )
 
 func init() {
@@ -18,7 +20,7 @@ var leaveCmd = &cobra.Command{
 	stop running for election, if this server was the leader
 	this will force the cluster to elect a new leader and start a new scheduler.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		ipa, err := dkron.ParseSingleIPTemplate(rpcAddr)
+		ipa, err := sxconfig.ParseSingleIPTemplate(rpcAddr)
 		if err != nil {
 			return err
 		}
@@ -27,15 +29,14 @@ var leaveCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var gc dkron.DkronGRPCClient
-		log := logrus.NewEntry(logrus.New())
-		gc = dkron.NewGRPCClient(nil, nil, log)
+		var gc sxrpc.DkronGRPCClient
+		gc = sxrpc.NewGRPCClient(nil, nil, logger)
 
 		if err := gc.Leave(ip); err != nil {
 			return err
 		}
 
-		log.Info("Left the cluster successfully")
+		logger.Info().Msg("Left the cluster successfully")
 		return nil
 	},
 }

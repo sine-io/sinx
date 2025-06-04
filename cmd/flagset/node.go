@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	"github.com/sine-io/sinx/internal/config"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 // NodeFlagSet creates all of our node flags.
-func NodeFlagSet(cfg *config.Config) *flag.FlagSet {
+func NodeFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("node flagset", flag.ContinueOnError)
 
 	cmdFlags.String("node-name", cfg.NodeName,

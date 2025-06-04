@@ -1,4 +1,4 @@
-package repository
+package agent
 
 import (
 	"bytes"
@@ -12,10 +12,11 @@ import (
 	"sync"
 	"time"
 
-	dkronpb "github.com/sine-io/sinx/types"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	"google.golang.org/protobuf/proto"
+
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -38,7 +39,7 @@ type Store struct {
 	db   *buntdb.DB
 	lock *sync.Mutex
 
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // JobOptions additional options to apply when loading a Job.
@@ -64,7 +65,7 @@ type kv struct {
 }
 
 // NewStore creates a new Storage instance.
-func NewStore(logger *logrus.Entry) (*Store, error) {
+func NewStore(logger zerolog.Logger) (*Store, error) {
 	db, err := buntdb.Open(":memory:")
 	if err != nil {
 		return nil, err
@@ -90,7 +91,7 @@ func NewStore(logger *logrus.Entry) (*Store, error) {
 	return store, nil
 }
 
-func (s *Store) setJobTxFunc(pbj *dkronpb.Job) func(tx *buntdb.Tx) error {
+func (s *Store) setJobTxFunc(pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		jobKey := fmt.Sprintf("%s:%s", jobsPrefix, pbj.Name)
 
@@ -98,7 +99,7 @@ func (s *Store) setJobTxFunc(pbj *dkronpb.Job) func(tx *buntdb.Tx) error {
 		if err != nil {
 			return err
 		}
-		s.logger.WithField("job", pbj.Name).Debug("store: Setting job")
+		s.logger.Debug().Str("job", pbj.Name).Msg("store: Setting job")
 
 		if _, _, err := tx.Set(jobKey, string(jb), nil); err != nil {
 			return err
@@ -115,7 +116,7 @@ func (s *Store) DB() *buntdb.DB {
 
 // SetJob stores a job in the storage
 func (s *Store) SetJob(job *Job, copyDependentJobs bool) error {
-	var pbej dkronpb.Job
+	var pbej sxproto.Job
 	var ej *Job
 
 	if err := job.Validate(); err != nil {
@@ -251,13 +252,13 @@ func (s *Store) addToParent(child *Job) error {
 func (s *Store) SetExecutionDone(execution *Execution) (bool, error) {
 	err := s.db.Update(func(tx *buntdb.Tx) error {
 		// Load the job from the store
-		var pbj dkronpb.Job
+		var pbj sxproto.Job
 		if err := s.getJobTxFunc(execution.JobName, &pbj)(tx); err != nil {
 			if err == buntdb.ErrNotFound {
-				s.logger.Warn(ErrExecutionDoneForDeletedJob)
+				s.logger.Warn().Err(ErrExecutionDoneForDeletedJob).Send()
 				return ErrExecutionDoneForDeletedJob
 			}
-			s.logger.WithError(err).Fatal(err)
+			s.logger.Fatal().Err(err).Send()
 			return err
 		}
 
@@ -292,7 +293,7 @@ func (s *Store) SetExecutionDone(execution *Execution) (bool, error) {
 		return nil
 	})
 	if err != nil {
-		s.logger.WithError(err).Error("store: Error in SetExecutionDone")
+		s.logger.Error().Err(err).Msg("store: Error in SetExecutionDone")
 		return false, err
 	}
 
@@ -323,7 +324,7 @@ func (s *Store) GetJobs(options *JobOptions) ([]*Job, error) {
 
 	jobs := make([]*Job, 0)
 	jobsFn := func(key, item string) bool {
-		var pbj dkronpb.Job
+		var pbj sxproto.Job
 		// [TODO] This condition is temporary while we migrate to JSON marshalling for jobs
 		// so we can use BuntDb indexes. To be removed in future versions.
 		if err := proto.Unmarshal([]byte(item), &pbj); err != nil {
@@ -360,7 +361,7 @@ func (s *Store) GetJobs(options *JobOptions) ([]*Job, error) {
 
 // GetJob finds and return a Job from the store
 func (s *Store) GetJob(name string, options *JobOptions) (*Job, error) {
-	var pbj dkronpb.Job
+	var pbj sxproto.Job
 
 	err := s.db.View(s.getJobTxFunc(name, &pbj))
 	if err != nil {
@@ -374,7 +375,7 @@ func (s *Store) GetJob(name string, options *JobOptions) (*Job, error) {
 }
 
 // This will allow reuse this code to avoid nesting transactions
-func (s *Store) getJobTxFunc(name string, pbj *dkronpb.Job) func(tx *buntdb.Tx) error {
+func (s *Store) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		item, err := tx.Get(fmt.Sprintf("%s:%s", jobsPrefix, name))
 		if err != nil {
@@ -389,9 +390,7 @@ func (s *Store) getJobTxFunc(name string, pbj *dkronpb.Job) func(tx *buntdb.Tx) 
 			}
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"job": pbj.Name,
-		}).Debug("store: Retrieved job from datastore")
+		s.logger.Debug().Str("job", pbj.Name).Msg("store: Retrieved job from datastore")
 
 		return nil
 	}
@@ -403,7 +402,7 @@ func (s *Store) DeleteJob(name string) (*Job, error) {
 	var job *Job
 	err := s.db.Update(func(tx *buntdb.Tx) error {
 		// Get the job
-		var pbj dkronpb.Job
+		var pbj sxproto.Job
 		if err := s.getJobTxFunc(name, &pbj)(tx); err != nil {
 			return err
 		}
@@ -521,7 +520,7 @@ func (s *Store) GetGroupedExecutions(jobName string, opts *ExecutionOptions) (ma
 	return groups, byGroup, nil
 }
 
-func (*Store) setExecutionTxFunc(key string, pbe *dkronpb.Execution) func(tx *buntdb.Tx) error {
+func (*Store) setExecutionTxFunc(key string, pbe *sxproto.Execution) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		// Get previous execution
 		i, err := tx.Get(key)
@@ -531,8 +530,8 @@ func (*Store) setExecutionTxFunc(key string, pbe *dkronpb.Execution) func(tx *bu
 		// Do nothing if a previous execution exists and is
 		// more recent, avoiding non ordered execution set
 		if i != "" {
-			var p dkronpb.Execution
-			// [TODO] This condition is temporary while we migrate to JSON marshalling for executions
+			var p sxproto.Execution
+			// TODO: This condition is temporary while we migrate to JSON marshalling for executions
 			// so we can use BuntDb indexes. To be removed in future versions.
 			if err := proto.Unmarshal([]byte(i), &p); err != nil {
 				if err := json.Unmarshal([]byte(i), &p); err != nil {
@@ -560,27 +559,30 @@ func (s *Store) SetExecution(execution *Execution) (string, error) {
 	pbe := execution.ToProto()
 	key := fmt.Sprintf("%s:%s:%s", executionsPrefix, execution.JobName, execution.Key())
 
-	s.logger.WithFields(logrus.Fields{
-		"job":       execution.JobName,
-		"execution": key,
-		"finished":  execution.FinishedAt.String(),
-	}).Debug("store: Setting key")
+	s.logger.Debug().
+		Str("job", execution.JobName).
+		Str("execution", key).
+		Str("finished", execution.FinishedAt.String()).
+		Msg("store: Setting key")
 
 	err := s.db.Update(s.setExecutionTxFunc(key, pbe))
 
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"job":       execution.JobName,
-			"execution": key,
-		}).Debug("store: Failed to set key")
+
+		s.logger.Debug().
+			Str("job", execution.JobName).
+			Str("execution", key).
+			Msg("store: Failed to set key")
+
 		return "", err
 	}
 
 	execs, err := s.GetExecutions(execution.JobName, &ExecutionOptions{})
 	if err != nil && err != buntdb.ErrNotFound {
-		s.logger.WithError(err).
-			WithField("job", execution.JobName).
-			Error("store: Error getting executions for job")
+		s.logger.Error().
+			Err(err).
+			Str("job", execution.JobName).
+			Msg("store: Error getting executions for job")
 	}
 
 	// Delete all execution results over the limit, starting from olders
@@ -591,19 +593,21 @@ func (s *Store) SetExecution(execution *Execution) (string, error) {
 		})
 
 		for i := 0; i < len(execs)-MaxExecutions; i++ {
-			s.logger.WithFields(logrus.Fields{
-				"job":       execs[i].JobName,
-				"execution": execs[i].Key(),
-			}).Debug("store: to delete key")
+			s.logger.Debug().
+				Str("job", execs[i].JobName).
+				Str("execution", execs[i].Key()).
+				Msg("store: to delete key")
+
 			err = s.db.Update(func(tx *buntdb.Tx) error {
 				k := fmt.Sprintf("%s:%s:%s", executionsPrefix, execs[i].JobName, execs[i].Key())
 				_, err := tx.Delete(k)
 				return err
 			})
 			if err != nil {
-				s.logger.WithError(err).
-					WithField("execution", execs[i].Key()).
-					Error("store: Error trying to delete overflowed execution")
+				s.logger.Error().
+					Err(err).
+					Str("execution", execs[i].Key()).
+					Msg("store: Error trying to delete overflowed execution")
 			}
 		}
 	}
@@ -651,13 +655,15 @@ func (s *Store) Restore(r io.ReadCloser) error {
 func (s *Store) unmarshalExecutions(items []kv, timezone *time.Location) ([]*Execution, error) {
 	var executions []*Execution
 	for _, item := range items {
-		var pbe dkronpb.Execution
+		var pbe sxproto.Execution
 
 		// [TODO] This condition is temporary while we migrate to JSON marshalling for jobs
 		// so we can use BuntDb indexes. To be removed in future versions.
 		if err := proto.Unmarshal([]byte(item.Value), &pbe); err != nil {
 			if err := json.Unmarshal(item.Value, &pbe); err != nil {
-				s.logger.WithError(err).WithField("key", item.Key).Debug("error unmarshaling JSON")
+				s.logger.Debug().Err(err).Str("key", item.Key).
+					Msg("store: error unmarshaling JSON")
+
 				return nil, err
 			}
 		}

@@ -1,4 +1,4 @@
-package rpc
+package agent
 
 import (
 	"bytes"
@@ -11,13 +11,15 @@ import (
 	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
-	"github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/types"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	"github.com/sine-io/sinx/types"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 var (
@@ -35,19 +37,19 @@ var (
 
 // DkronGRPCServer defines the basics that a gRPC server should implement.
 type DkronGRPCServer interface {
-	types.DkronServer
+	sxproto.DkronServer
 	Serve(net.Listener) error
 }
 
 // GRPCServer is the local implementation of the gRPC server interface.
 type GRPCServer struct {
-	types.DkronServer
+	sxproto.DkronServer
 	agent  *Agent
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // NewGRPCServer creates and returns an instance of a DkronGRPCServer implementation
-func NewGRPCServer(agent *Agent, logger *logrus.Entry) DkronGRPCServer {
+func NewGRPCServer(agent *Agent, logger zerolog.Logger) DkronGRPCServer {
 	return &GRPCServer{
 		agent:  agent,
 		logger: logger,
@@ -57,10 +59,10 @@ func NewGRPCServer(agent *Agent, logger *logrus.Entry) DkronGRPCServer {
 // Serve creates and start a new gRPC dkron server
 func (grpcs *GRPCServer) Serve(lis net.Listener) error {
 	grpcServer := grpc.NewServer()
-	types.RegisterDkronServer(grpcServer, grpcs)
+	sxproto.RegisterDkronServer(grpcServer, grpcs)
 
-	as := NewAgentServer(grpcs.agent, grpcs.logger)
-	types.RegisterAgentServer(grpcServer, as)
+	as := NewGRPCAgentServer(grpcs.agent, grpcs.logger)
+	sxproto.RegisterAgentServer(grpcServer, as)
 	go grpcServer.Serve(lis)
 
 	return nil
@@ -81,11 +83,12 @@ func Encode(t MessageType, msg interface{}) ([]byte, error) {
 // SetJob broadcast a state change to the cluster members that will store the job.
 // Then restart the scheduler
 // This only works on the leader
-func (grpcs *GRPCServer) SetJob(ctx context.Context, setJobReq *types.SetJobRequest) (*types.SetJobResponse, error) {
+func (grpcs *GRPCServer) SetJob(ctx context.Context, setJobReq *sxproto.SetJobRequest) (*sxproto.SetJobResponse, error) {
 	defer metrics.MeasureSince([]string{"grpc", "set_job"}, time.Now())
-	grpcs.logger.WithFields(logrus.Fields{
-		"job": setJobReq.Job.Name,
-	}).Debug("grpc: Received SetJob")
+
+	grpcs.logger.Debug().
+		Str("job", setJobReq.Job.Name).
+		Msg("grpc: Received SetJob")
 
 	if err := grpcs.agent.applySetJob(setJobReq.Job); err != nil {
 		return nil, err
@@ -98,14 +101,15 @@ func (grpcs *GRPCServer) SetJob(ctx context.Context, setJobReq *types.SetJobRequ
 		return nil, err
 	}
 
-	return &types.SetJobResponse{}, nil
+	return &sxproto.SetJobResponse{}, nil
 }
 
 // DeleteJob broadcast a state change to the cluster members that will delete the job.
 // This only works on the leader
-func (grpcs *GRPCServer) DeleteJob(ctx context.Context, delJobReq *types.DeleteJobRequest) (*types.DeleteJobResponse, error) {
+func (grpcs *GRPCServer) DeleteJob(ctx context.Context, delJobReq *sxproto.DeleteJobRequest) (*sxproto.DeleteJobResponse, error) {
 	defer metrics.MeasureSince([]string{"grpc", "delete_job"}, time.Now())
-	grpcs.logger.WithField("job", delJobReq.GetJobName()).Debug("grpc: Received DeleteJob")
+
+	grpcs.logger.Debug().Str("job", delJobReq.GetJobName()).Msg("grpc: Received DeleteJob")
 
 	cmd, err := Encode(DeleteJobType, delJobReq)
 	if err != nil {
@@ -125,24 +129,24 @@ func (grpcs *GRPCServer) DeleteJob(ctx context.Context, delJobReq *types.DeleteJ
 	// If everything is ok, remove the job
 	grpcs.agent.sched.RemoveJob(job.Name)
 	if job.Ephemeral {
-		grpcs.logger.WithField("job", job.Name).Info("grpc: Done deleting ephemeral job")
+		grpcs.logger.Info().Str("job", job.Name).Msg("grpc: Done deleting ephemeral job")
 	}
 
-	return &types.DeleteJobResponse{Job: jpb}, nil
+	return &sxproto.DeleteJobResponse{Job: jpb}, nil
 }
 
 // GetJob loads the job from the datastore
-func (grpcs *GRPCServer) GetJob(ctx context.Context, getJobReq *types.GetJobRequest) (*types.GetJobResponse, error) {
+func (grpcs *GRPCServer) GetJob(ctx context.Context, getJobReq *sxproto.GetJobRequest) (*sxproto.GetJobResponse, error) {
 	defer metrics.MeasureSince([]string{"grpc", "get_job"}, time.Now())
-	grpcs.logger.WithField("job", getJobReq.JobName).Debug("grpc: Received GetJob")
+	grpcs.logger.Debug().Str("job", getJobReq.JobName).Msg("grpc: Received GetJob")
 
 	j, err := grpcs.agent.Store.GetJob(getJobReq.JobName, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	gjr := &types.GetJobResponse{
-		Job: &types.Job{},
+	gjr := &sxproto.GetJobResponse{
+		Job: &sxproto.Job{},
 	}
 
 	// Copy the data structure
@@ -154,13 +158,13 @@ func (grpcs *GRPCServer) GetJob(ctx context.Context, getJobReq *types.GetJobRequ
 }
 
 // ExecutionDone saves the execution to the store
-func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.ExecutionDoneRequest) (*types.ExecutionDoneResponse, error) {
+func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto.ExecutionDoneRequest) (*sxproto.ExecutionDoneResponse, error) {
 	defer metrics.MeasureSince([]string{"grpc", "execution_done"}, time.Now())
-	grpcs.logger.WithFields(logrus.Fields{
-		"group": execDoneReq.Execution.Group,
-		"job":   execDoneReq.Execution.JobName,
-		"from":  execDoneReq.Execution.NodeName,
-	}).Debug("grpc: Received execution done")
+	grpcs.logger.Debug().
+		Int64("group", execDoneReq.Execution.Group).
+		Str("job", execDoneReq.Execution.JobName).
+		Str("from", execDoneReq.Execution.NodeName).
+		Msg("grpc: Received execution done")
 
 	// Get the leader address and compare with the current node address.
 	// Forward the request to the leader in case current node is not the leader.
@@ -179,12 +183,12 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.E
 
 	pbex := *execDoneReq.Execution
 	for k, v := range job.Processors {
-		grpcs.logger.WithField("plugin", k).Info("grpc: Processing execution with plugin")
+		grpcs.logger.Info().Str("plugin", k).Msg("grpc: Processing execution with plugin")
 		if processor, ok := grpcs.agent.ProcessorPlugins[k]; ok {
 			v["reporting_node"] = grpcs.agent.config.NodeName
-			pbex = processor.Process(&plugin.ProcessorArgs{Execution: pbex, Config: v})
+			pbex = processor.Process(&sxplugin.ProcessorArgs{Execution: pbex, Config: v})
 		} else {
-			grpcs.logger.WithField("plugin", k).Error("grpc: Specified plugin not found")
+			grpcs.logger.Error().Str("plugin", k).Msg("grpc: Specified plugin not found")
 		}
 	}
 
@@ -201,7 +205,11 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.E
 	// Retrieve the fresh, updated job from the store to work on stored values
 	job, err = grpcs.agent.Store.GetJob(job.Name, nil)
 	if err != nil {
-		grpcs.logger.WithError(err).WithField("job", execDoneReq.Execution.JobName).Error("grpc: Error retrieving job from store")
+		grpcs.logger.Error().
+			Err(err).
+			Str("job", execDoneReq.Execution.JobName).
+			Msg("grpc: Error retrieving job from store")
+
 		return nil, err
 	}
 
@@ -218,11 +226,11 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.E
 		execution.Output = ""
 
 		eb := execution.CalculateExponentialBackoff()
-		grpcs.logger.WithFields(logrus.Fields{
-			"attempt":   execution.Attempt,
-			"execution": execution,
-			"backoff":   eb,
-		}).Debug("grpc: Retrying execution")
+		grpcs.logger.Debug().
+			Uint("attempt", execution.Attempt).
+			Any("execution", execution).
+			Any("backoff", eb).
+			Msg("grpc: Retrying execution")
 
 		time.Sleep(eb)
 
@@ -242,7 +250,11 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.E
 		},
 	)
 	if err != nil {
-		grpcs.logger.WithError(err).WithField("group", execution.Group).Error("grpc: Error getting execution group.")
+		grpcs.logger.Error().
+			Err(err).
+			Int64("group", execution.Group).
+			Msg("grpc: Error getting execution group.")
+
 		return nil, err
 	}
 
@@ -260,7 +272,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *types.E
 				return nil, err
 			}
 			dj.Agent = grpcs.agent
-			grpcs.logger.WithField("job", djn).Debug("grpc: Running dependent job")
+			grpcs.logger.Debug().Str("job", djn).Msg("grpc: Running dependent job")
 			dj.Run()
 		}
 	}
@@ -383,11 +395,12 @@ REMOVE:
 	// pass.
 	future := grpcs.agent.raft.RemoveServer(raft.ServerID(in.Id), 0, 0)
 	if err := future.Error(); err != nil {
-		grpcs.logger.WithError(err).WithField("peer", in.Id).Warn("failed to remove Raft peer")
+		grpcs.logger.Warn().Err(err).Str("peer", in.Id).Msg("failed to remove Raft peer")
 		return nil, err
 	}
 
-	grpcs.logger.WithField("peer", in.Id).Warn("removed Raft peer")
+	grpcs.logger.Warn().Str("peer", in.Id).Msg("removed Raft peer")
+
 	return new(emptypb.Empty), nil
 }
 
@@ -411,18 +424,18 @@ func (grpcs *GRPCServer) GetActiveExecutions(ctx context.Context, in *emptypb.Em
 // This only works on the leader
 func (grpcs *GRPCServer) SetExecution(ctx context.Context, execution *types.Execution) (*emptypb.Empty, error) {
 	defer metrics.MeasureSince([]string{"grpc", "set_execution"}, time.Now())
-	grpcs.logger.WithFields(logrus.Fields{
-		"execution": execution.Key(),
-	}).Debug("grpc: Received SetExecution")
+	grpcs.logger.Debug().
+		Str("execution", execution.Key()).
+		Msg("grpc: Received SetExecution")
 
 	cmd, err := Encode(SetExecutionType, execution)
 	if err != nil {
-		grpcs.logger.WithError(err).Fatal("agent: encode error in SetExecution")
+		grpcs.logger.Fatal().Err(err).Msg("agent: encode error in SetExecution")
 		return nil, err
 	}
 	af := grpcs.agent.raft.Apply(cmd, raftTimeout)
 	if err := af.Error(); err != nil {
-		grpcs.logger.WithError(err).Fatal("agent: error applying SetExecutionType")
+		grpcs.logger.Fatal().Err(err).Msg("agent: error applying SetExecutionType")
 		return nil, err
 	}
 

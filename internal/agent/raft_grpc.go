@@ -1,13 +1,12 @@
-package rpc
+package agent
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"time"
 
 	"github.com/hashicorp/raft"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
 )
 
 // RaftLayer is the network layer for internode communications.
@@ -15,16 +14,16 @@ type RaftLayer struct {
 	TLSConfig *tls.Config
 
 	ln     net.Listener
-	logger *logrus.Entry
+	logger zerolog.Logger
 }
 
 // NewRaftLayer returns an initialized unencrypted RaftLayer.
-func NewRaftLayer(logger *logrus.Entry) *RaftLayer {
+func NewRaftLayer(logger zerolog.Logger) *RaftLayer {
 	return &RaftLayer{logger: logger}
 }
 
 // NewTLSRaftLayer returns an initialized TLS-encrypted RaftLayer.
-func NewTLSRaftLayer(tlsConfig *tls.Config, logger *logrus.Entry) *RaftLayer {
+func NewTLSRaftLayer(tlsConfig *tls.Config, logger zerolog.Logger) *RaftLayer {
 	return &RaftLayer{
 		TLSConfig: tlsConfig,
 		logger:    logger,
@@ -41,10 +40,12 @@ func (t *RaftLayer) Open(l net.Listener) error {
 func (t *RaftLayer) Dial(addr raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: timeout}
 
-	var err error
-	var conn net.Conn
+	var (
+		err  error
+		conn net.Conn
+	)
 	if t.TLSConfig != nil {
-		t.logger.Debug("doing a TLS dial")
+		t.logger.Debug().Msg("doing a TLS dial")
 		conn, err = tls.DialWithDialer(dialer, "tcp", string(addr), t.TLSConfig)
 	} else {
 		conn, err = dialer.Dial("tcp", string(addr))
@@ -57,7 +58,7 @@ func (t *RaftLayer) Dial(addr raft.ServerAddress, timeout time.Duration) (net.Co
 func (t *RaftLayer) Accept() (net.Conn, error) {
 	c, err := t.ln.Accept()
 	if err != nil {
-		fmt.Println("error accepting: ", err.Error())
+		t.logger.Error().Msgf("error accepting: ", err.Error())
 	}
 	return c, err
 }
