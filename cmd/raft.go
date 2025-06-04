@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ryanuber/columnize"
-	"github.com/sine-io/sinx/dkron"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

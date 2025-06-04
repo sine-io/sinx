@@ -13,7 +13,6 @@ main.exe
 /dkron-processor-*
 /dkron-executor-*
 *.log
-config/
 dist
 node_modules
 *.db

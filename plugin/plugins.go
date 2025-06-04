@@ -1,4 +1,4 @@
-package cmd
+package plugin
 
 import (
 	"os"
@@ -11,16 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
-	"github.com/sine-io/sinx/dkron"
 	"github.com/sine-io/sinx/logging"
-	dkplugin "github.com/sine-io/sinx/plugin"
 )
 
 var embededPlugins = []string{"shell", "http"}
 
 type Plugins struct {
-	Processors map[string]dkplugin.Processor
-	Executors  map[string]dkplugin.Executor
+	Processors map[string]Processor
+	Executors  map[string]Executor
 	LogLevel   string
 	NodeName   string
 }
@@ -34,8 +32,8 @@ type Plugins struct {
 //
 // Whichever file is discoverd LAST wins.
 func (p *Plugins) DiscoverPlugins() error {
-	p.Processors = make(map[string]dkplugin.Processor)
-	p.Executors = make(map[string]dkplugin.Executor)
+	p.Processors = make(map[string]Processor)
+	p.Executors = make(map[string]Executor)
 
 	pluginDir := filepath.Join("/etc", "dkron", "plugins")
 	if viper.ConfigFileUsed() != "" {
@@ -79,11 +77,11 @@ func (p *Plugins) DiscoverPlugins() error {
 			continue
 		}
 
-		raw, err := p.pluginFactory(file, []string{}, dkplugin.ProcessorPluginName)
+		raw, err := p.pluginFactory(file, []string{}, ProcessorPluginName)
 		if err != nil {
 			return err
 		}
-		p.Processors[pluginName] = raw.(dkplugin.Processor)
+		p.Processors[pluginName] = raw.(Processor)
 	}
 
 	for _, file := range executors {
@@ -92,20 +90,20 @@ func (p *Plugins) DiscoverPlugins() error {
 			continue
 		}
 
-		raw, err := p.pluginFactory(file, []string{}, dkplugin.ExecutorPluginName)
+		raw, err := p.pluginFactory(file, []string{}, ExecutorPluginName)
 		if err != nil {
 			return err
 		}
-		p.Executors[pluginName] = raw.(dkplugin.Executor)
+		p.Executors[pluginName] = raw.(Executor)
 	}
 
 	// Load the embeded plugins
 	for _, pluginName := range embededPlugins {
-		raw, err := p.pluginFactory(exePath, []string{pluginName}, dkplugin.ExecutorPluginName)
+		raw, err := p.pluginFactory(exePath, []string{pluginName}, ExecutorPluginName)
 		if err != nil {
 			return err
 		}
-		p.Executors[pluginName] = raw.(dkplugin.Executor)
+		p.Executors[pluginName] = raw.(Executor)
 	}
 
 	return nil
@@ -131,17 +129,17 @@ func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (
 	// Build the plugin client configuration and init the plugin
 	var config plugin.ClientConfig
 	config.Cmd = exec.Command(path, args...)
-	config.HandshakeConfig = dkplugin.Handshake
+	config.HandshakeConfig = Handshake
 	config.Managed = true
-	config.Plugins = dkplugin.PluginMap
+	config.Plugins = PluginMap
 	config.SyncStdout = os.Stdout
 	config.SyncStderr = os.Stderr
 	config.Logger = &dkron.HCLogAdapter{Logger: logging.InitLogger(p.LogLevel, p.NodeName), LoggerName: "plugins"}
 
 	switch pluginType {
-	case dkplugin.ProcessorPluginName:
+	case ProcessorPluginName:
 		config.AllowedProtocols = []plugin.Protocol{plugin.ProtocolNetRPC}
-	case dkplugin.ExecutorPluginName:
+	case ExecutorPluginName:
 		config.AllowedProtocols = []plugin.Protocol{plugin.ProtocolGRPC}
 	}
 

@@ -1,17 +1,20 @@
-package grpc
+package rpc
 
 import (
 	"fmt"
+	"github.com/rs/zerolog"
 	"io"
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/sine-io/sinx/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	sagent "github.com/sine-io/sinx/internal/agent"
+	sproto "github.com/sine-io/sinx/types"
 )
 
 // DkronGRPCClient defines the interface that any gRPC client for
@@ -24,22 +27,22 @@ type DkronGRPCClient interface {
 	DeleteJob(string) (*Job, error)
 	Leave(string) error
 	RunJob(string) (*Job, error)
-	RaftGetConfiguration(string) (*types.RaftGetConfigurationResponse, error)
+	RaftGetConfiguration(string) (*sproto.RaftGetConfigurationResponse, error)
 	RaftRemovePeerByID(string, string) error
-	GetActiveExecutions(string) ([]*types.Execution, error)
-	SetExecution(execution *types.Execution) error
-	AgentRun(addr string, job *types.Job, execution *types.Execution) error
+	GetActiveExecutions(string) ([]*sproto.Execution, error)
+	SetExecution(execution *sproto.Execution) error
+	AgentRun(addr string, job *sproto.Job, execution *sproto.Execution) error
 }
 
 // GRPCClient is the local implementation of the DkronGRPCClient interface.
 type GRPCClient struct {
 	dialOpt []grpc.DialOption
-	agent   *Agent
-	logger  *logrus.Entry
+	agent   *sagent.Agent
+	logger  zerolog.Logger
 }
 
 // NewGRPCClient returns a new instance of the gRPC client.
-func NewGRPCClient(dialOpt grpc.DialOption, agent *Agent, logger *logrus.Entry) DkronGRPCClient {
+func NewGRPCClient(dialOpt grpc.DialOption, agent *sagent.Agent, logger zerolog.Logger) DkronGRPCClient {
 	if dialOpt == nil {
 		dialOpt = grpc.WithInsecure()
 	}

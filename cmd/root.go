@@ -2,21 +2,35 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/sine-io/sinx/dkron"
-	"github.com/sine-io/sinx/logging"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/sine-io/sinx/cmd/flagset"
+	sconfig "github.com/sine-io/sinx/internal/config"
+	slogging "github.com/sine-io/sinx/logging"
 )
 
-var cfgFile string
-var config = dkron.DefaultConfig()
+var (
+	cfgFile    string
+	rpcAddr    string
+	ip         string
+	initErrors []error
 
-var rpcAddr string
-var ip string
+	GlobalCfg = sconfig.DefaultConfig() // GlobalCfg holds the global configuration for the application
+)
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
+	// add log flags to root command.
+	rootCmd.Flags().AddFlagSet(flagset.LogFlagSet(GlobalCfg))
+	_ = viper.BindPFlags(rootCmd.Flags())
+
+	// cobra.OnFinalize()
+}
 
 // rootCmd represents the dkron command
 var rootCmd = &cobra.Command{
@@ -30,14 +44,11 @@ If a machine fails (the leader), a follower will take over and keep running the 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	cobra.CheckErr(rootCmd.Execute())
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() error {
+func initConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -53,17 +64,13 @@ func initConfig() error {
 	viper.SetEnvKeyReplacer(replacer)
 	viper.AutomaticEnv() // read in environment variables that match
 
-	// TODO: needed?
-	// Add hook to set error logs to stderr and regular logs to stdout
-	// logrus.AddHook(&logging.LogSplitter{})
-
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {             // Handle errors reading the config file
-		logrus.WithError(err).Info("No valid config found: Applying default values.")
+		initErrors = append(initErrors, fmt.Errorf("no valid config found: Applying default values. Error: %s", err))
 	}
 
-	if err := viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("config: Error unmarshalling config: %s", err)
+	if err := viper.Unmarshal(GlobalCfg); err != nil {
+		initErrors = append(initErrors, fmt.Errorf("error unmarshalling config. Error: %s", err))
 	}
 
 	cliTags := viper.GetStringSlice("tag")
@@ -72,15 +79,21 @@ func initConfig() error {
 	if len(cliTags) > 0 {
 		tags, err = UnmarshalTags(cliTags)
 		if err != nil {
-			return fmt.Errorf("config: Error unmarshalling cli tags: %s", err)
+			initErrors = append(initErrors, fmt.Errorf("error unmarshalling cli tags. Error: %s", err))
 		}
 	} else {
 		tags = viper.GetStringMapString("tags")
 	}
+	GlobalCfg.Tags = tags
 
-	config.Tags = tags
+	// logging.L will be initialized with the global configuration
+	slogging.GetLogger(GlobalCfg)
 
-	logging.InitLogger(viper.GetString("log-level"), config.NodeName)
-
-	return nil
+	if len(initErrors) > 0 {
+		for _, err := range initErrors {
+			slogging.L.Error().Err(err).Msg("Initialization error")
+		}
+	} else {
+		slogging.L.Info().Msg("Configuration loaded successfully")
+	}
 }

@@ -28,8 +28,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/sine-io/sinx/plugin"
-	proto "github.com/sine-io/sinx/types"
+	sconfig "github.com/sine-io/sinx/internal/config"
+	splugin "github.com/sine-io/sinx/plugin"
+	sproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -49,7 +50,7 @@ var (
 	// ErrNoSuitableServer returns an error in case no suitable server to send the request is found.
 	ErrNoSuitableServer = errors.New("no suitable server found to send the request, aborting")
 
-	runningExecutions sync.Map
+	RunningExecutions sync.Map
 )
 
 type RaftStore interface {
@@ -64,10 +65,10 @@ type Node = serf.Member
 // Agent is the main struct that represents a dkron agent
 type Agent struct {
 	// ProcessorPlugins maps processor plugins
-	ProcessorPlugins map[string]plugin.Processor
+	ProcessorPlugins map[string]splugin.Processor
 
 	//ExecutorPlugins maps executor plugins
-	ExecutorPlugins map[string]plugin.Executor
+	ExecutorPlugins map[string]splugin.Executor
 
 	// HTTPTransport is a swappable interface for the HTTP server interface
 	HTTPTransport Transport
@@ -90,7 +91,7 @@ type Agent struct {
 	ProAppliers        LogAppliers
 
 	serf        *serf.Serf
-	config      *Config
+	Config      *sconfig.Config
 	eventCh     chan serf.Event
 	sched       *Scheduler
 	ready       bool
@@ -143,9 +144,9 @@ type AgentOption func(agent *Agent)
 
 // NewAgent returns a new Agent instance capable of starting
 // and running a Dkron instance.
-func NewAgent(config *Config, options ...AgentOption) *Agent {
+func NewAgent(config *sconfig.Config, options ...AgentOption) *Agent {
 	agent := &Agent{
-		config:       config,
+		Config:       config,
 		retryJoinCh:  make(chan error),
 		serverLookup: NewServerLookup(),
 	}
@@ -155,92 +156,6 @@ func NewAgent(config *Config, options ...AgentOption) *Agent {
 	}
 
 	return agent
-}
-
-// Start the current agent by running all the necessary
-// checks and server or client routines.
-func (a *Agent) Start() error {
-	log := InitLogger(a.config.LogLevel, a.config.NodeName)
-	a.logger = log
-
-	// Initialize rand with current time
-	// rand.Seed(time.Now().UnixNano()) // sine.2025.5.29, use math/rand/v2
-
-	// Normalize configured addresses
-	if err := a.config.normalizeAddrs(); err != nil && !errors.Is(err, ErrResolvingHost) {
-		return err
-	}
-
-	s, err := a.setupSerf()
-	if err != nil {
-		return fmt.Errorf("agent: Can not setup serf, %s", err)
-	}
-	a.serf = s
-
-	// start retry join
-	if len(a.config.RetryJoinLAN) > 0 {
-		a.retryJoinLAN()
-	} else {
-		_, err := a.join(a.config.StartJoin, true)
-		if err != nil {
-			a.logger.WithError(err).WithField("servers", a.config.StartJoin).Warn("agent: Can not join")
-		}
-	}
-
-	if err := initMetrics(a); err != nil {
-		a.logger.Fatal("agent: Can not setup metrics")
-	}
-
-	// Expose the node name
-	expNode.Set(a.config.NodeName)
-
-	//Use the value of "RPCPort" if AdvertiseRPCPort has not been set
-	if a.config.AdvertiseRPCPort <= 0 {
-		a.config.AdvertiseRPCPort = a.config.RPCPort
-	}
-
-	// Create a listener for RPC subsystem
-	addr := a.bindRPCAddr()
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		a.logger.Fatal(err)
-	}
-	a.listener = l
-
-	if a.config.Server {
-		a.StartServer()
-	} else {
-		opts := []grpc.ServerOption{}
-		if a.TLSConfig != nil {
-			tc := credentials.NewTLS(a.TLSConfig)
-			opts = append(opts, grpc.Creds(tc))
-		}
-
-		grpcServer := grpc.NewServer(opts...)
-		as := NewAgentServer(a, a.logger)
-		proto.RegisterAgentServer(grpcServer, as)
-		go func() {
-			if err := grpcServer.Serve(l); err != nil {
-				a.logger.Fatal(err)
-			}
-		}()
-	}
-
-	if a.GRPCClient == nil {
-		a.GRPCClient = NewGRPCClient(nil, a, a.logger)
-	}
-
-	tags := a.serf.LocalMember().Tags
-	tags["rpc_addr"] = a.advertiseRPCAddr() // Address that clients will use to RPC to servers
-	tags["port"] = strconv.Itoa(a.config.AdvertiseRPCPort)
-	if err := a.serf.SetTags(tags); err != nil {
-		return fmt.Errorf("agent: Error setting tags: %w", err)
-	}
-
-	go a.eventLoop()
-	a.ready = true
-
-	return nil
 }
 
 // RetryJoinCh is a channel that transports errors
@@ -536,16 +451,6 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 		return nil, err
 	}
 	return serf, nil
-}
-
-// Config returns the agent's config.
-func (a *Agent) Config() *Config {
-	return a.config
-}
-
-// SetConfig sets the agent's config.
-func (a *Agent) SetConfig(c *Config) {
-	a.config = c
 }
 
 // StartServer launch a new dkron server process
@@ -888,8 +793,8 @@ func (a *Agent) recursiveSetJob(jobs []*Job) []string {
 	return result
 }
 
-// Check if the server is alive and select it
-func (a *Agent) checkAndSelectServer() (string, error) {
+// CheckAndSelectServer Check if the server is alive and select it
+func (a *Agent) CheckAndSelectServer() (string, error) {
 	var peers []string
 	for _, p := range a.LocalServers() {
 		peers = append(peers, p.RPCAddr.String())

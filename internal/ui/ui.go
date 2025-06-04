@@ -1,4 +1,4 @@
-package dkron
+package ui
 
 import (
 	"embed"

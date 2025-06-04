@@ -1,4 +1,4 @@
-package dkron
+package repository
 
 import (
 	"io"
@@ -9,6 +9,9 @@ import (
 
 	dkronpb "github.com/sine-io/sinx/types"
 )
+
+// Raft finite state machine (FSM) is used to apply Raft log entries
+// to the key-value store.
 
 // MessageType is the type to encode FSM commands.
 type MessageType uint8

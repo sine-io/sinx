@@ -1,4 +1,4 @@
-package dkron
+package rpc
 
 import (
 	"crypto/tls"

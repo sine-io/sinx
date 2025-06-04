@@ -1,4 +1,4 @@
-package dkron
+package repository
 
 import (
 	"io"

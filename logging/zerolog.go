@@ -9,22 +9,24 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/sine-io/sinx/internal/config"
 )
 
 var (
-	once            sync.Once
-	initErrors      []error
-	formattedLogger zerolog.Logger
+	once       sync.Once
+	initErrors []error
+	L          zerolog.Logger
 )
 
-// InitLogger creates the logger instance
-func InitLogger(logLevel string, node string) zerolog.Logger {
+// GetLogger creates the logger instance
+func GetLogger(cfg *config.Config) zerolog.Logger {
 
 	once.Do(func() {
 		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 		zerolog.TimeFieldFormat = time.RFC3339Nano
 
-		logLevel, err := zerolog.ParseLevel(logLevel)
+		logLevel, err := zerolog.ParseLevel(cfg.LogLevel)
 
 		if err != nil {
 			// If the log level is invalid, default to INFO
@@ -48,17 +50,19 @@ func InitLogger(logLevel string, node string) zerolog.Logger {
 
 		writer := zerolog.MultiLevelWriter(consoleLogger, fileLogger)
 
-		formattedLogger = zerolog.New(writer).
+		L = zerolog.New(writer).
 			Level(logLevel).
-			With().Str("node", node). // Add node information to the logger
+			With().Str("node", cfg.NodeName). // Add node information to the logger
 			Timestamp().
 			Logger()
 
 		for _, err := range initErrors {
-			formattedLogger.Error().Err(err).Msg("Logger initialization error")
+			L.Error().Err(err).Msg("Logger initialization error")
 		}
 		initErrors = nil // Clear errors after logging them
+
+		L.Hook(&LogSplitter{})
 	})
 
-	return formattedLogger
+	return L
 }

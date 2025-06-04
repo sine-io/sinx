@@ -1,4 +1,4 @@
-package dkron
+package repository
 
 import (
 	"bytes"
@@ -36,7 +36,7 @@ var (
 // BuntDB.
 type Store struct {
 	db   *buntdb.DB
-	lock *sync.Mutex // for
+	lock *sync.Mutex
 
 	logger *logrus.Entry
 }

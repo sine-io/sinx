@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/sine-io/sinx/cmd/flagset"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,10 +13,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	sagent "github.com/sine-io/sinx/internal/agent"
+	splugin "github.com/sine-io/sinx/plugin"
 )
 
-var ShutdownCh chan (struct{})
-var agent *dkron.Agent
+var (
+	ShutdownCh chan (struct{})
+	agent      *sagent.Agent
+)
 
 const (
 	// gracefulTimeout controls how long we wait before forcefully terminating
@@ -25,8 +31,13 @@ const (
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	agentCmd.Flags().AddFlagSet(dkron.ConfigFlagSet())
+	agentCmd.Flags().AddFlagSet(flagset.NodeFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(flagset.NetworkFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(flagset.ClusterFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(flagset.StorageFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(flagset.NotificationFlagSet(GlobalCfg))
+	agentCmd.Flags().AddFlagSet(flagset.ObservabilityFlagSet(GlobalCfg))
+
 	_ = viper.BindPFlags(agentCmd.Flags())
 }
 
@@ -36,9 +47,6 @@ var agentCmd = &cobra.Command{
 	Short: "Start a dkron agent",
 	Long: `Start a dkron agent that schedules jobs, listens for executions and runs executors.
 It also runs a web UI.`,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return initConfig()
-	},
 	// Run will execute the main functions of the agent command.
 	// This includes the main eventloop and starting the server if enabled.
 	//
@@ -56,19 +64,19 @@ func agentRun(args ...string) error {
 	log.Debugf("agentRun called with args: %v", args)
 
 	// Make sure we clean up any managed plugins at the end of this
-	p := &Plugins{
-		LogLevel: config.LogLevel,
-		NodeName: config.NodeName,
+	p := &splugin.Plugins{
+		LogLevel: GlobalCfg.LogLevel,
+		NodeName: GlobalCfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {
 		log.Fatal(err)
 	}
-	plugins := dkron.Plugins{
+	plugins := splugin.Plugins{
 		Processors: p.Processors,
 		Executors:  p.Executors,
 	}
 
-	agent = dkron.NewAgent(config, dkron.WithPlugins(plugins))
+	agent = sagent.NewAgent(GlobalCfg, sagent.WithPlugins(plugins))
 	if err := agent.Start(); err != nil {
 		return err
 	}

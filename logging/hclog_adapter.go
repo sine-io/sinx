@@ -1,4 +1,4 @@
-package dkron
+package logging
 
 import (
 	"bytes"
@@ -136,7 +136,7 @@ func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
 	return currentLevel >= level
 }
 
-// CreateEntry creates a new logrus entry
+// CreateEntry creates a new entry
 func (a *HCLogAdapter) CreateEntry(args []interface{}) zerolog.Logger {
 	if len(args)%2 != 0 {
 		args = append(args, "<unknown>")

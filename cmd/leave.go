@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/sine-io/sinx/dkron"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

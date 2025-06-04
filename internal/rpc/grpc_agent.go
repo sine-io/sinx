@@ -1,14 +1,17 @@
-package grpc
+package rpc
 
 import (
 	"errors"
+	"github.com/rs/zerolog"
 	"time"
 
 	"github.com/armon/circbuf"
 	metrics "github.com/armon/go-metrics"
-	"github.com/sine-io/sinx/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	sagent "github.com/sine-io/sinx/internal/agent"
+	sproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -17,14 +20,14 @@ const (
 )
 
 type statusAgentHelper struct {
-	execution *types.Execution
-	stream    types.Agent_AgentRunServer
+	execution *sproto.Execution
+	stream    sproto.Agent_AgentRunServer
 }
 
 func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 	s.execution.Output = b
 	// Send partial execution
-	if err := s.stream.Send(&types.AgentRunStream{
+	if err := s.stream.Send(&sproto.AgentRunStream{
 		Execution: s.execution,
 	}); err != nil {
 		return 0, err
@@ -33,15 +36,15 @@ func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 }
 
 // GRPCAgentServer is the local implementation of the gRPC server interface.
-type AgentServer struct {
-	types.AgentServer
-	agent  *Agent
-	logger *logrus.Entry
+type GRPCAgentServer struct {
+	sproto.AgentServer
+	agent  *sagent.Agent
+	logger zerolog.Logger
 }
 
-// NewServer creates and returns an instance of a DkronGRPCServer implementation
-func NewAgentServer(agent *Agent, logger *logrus.Entry) types.AgentServer {
-	return &AgentServer{
+// NewGRPCAgentServer creates and returns an instance of a AgentServer implementation
+func NewGRPCAgentServer(agent *sagent.Agent, logger zerolog.Logger) sproto.AgentServer {
+	return &GRPCAgentServer{
 		agent:  agent,
 		logger: logger,
 	}
@@ -49,15 +52,13 @@ func NewAgentServer(agent *Agent, logger *logrus.Entry) types.AgentServer {
 
 // AgentRun is called when an agent starts running a job and lasts all execution,
 // the agent will stream execution progress to the server.
-func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_AgentRunServer) error {
+func (as *GRPCAgentServer) AgentRun(req *sproto.AgentRunRequest, stream sproto.Agent_AgentRunServer) error {
 	defer metrics.MeasureSince([]string{"grpc_agent", "agent_run"}, time.Now())
 
 	job := req.Job
 	execution := req.Execution
 
-	as.logger.WithFields(logrus.Fields{
-		"job": job.Name,
-	}).Info("grpc_agent: Starting job")
+	as.logger.Info().Str("job", job.Name).Msg("grpc_agent: Starting job")
 
 	output, _ := circbuf.NewBuffer(maxBufSize)
 
@@ -68,9 +69,9 @@ func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_A
 
 	// Send the first update with the initial execution state to be stored in the server
 	execution.StartedAt = timestamppb.Now()
-	execution.NodeName = as.agent.config.NodeName
+	execution.NodeName = as.agent.Config.NodeName
 
-	if err := stream.Send(&types.AgentRunStream{
+	if err := stream.Send(&sproto.AgentRunStream{
 		Execution: execution,
 	}); err != nil {
 		return err
@@ -82,9 +83,10 @@ func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_A
 
 	// Check if executor exists
 	if executor, ok := as.agent.ExecutorPlugins[jex]; ok {
-		as.logger.WithField("plugin", jex).Debug("grpc_agent: calling executor plugin")
-		runningExecutions.Store(execution.GetGroup(), execution)
-		out, err := executor.Execute(&types.ExecuteRequest{
+		as.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
+
+		sagent.RunningExecutions.Store(execution.GetGroup(), execution)
+		out, err := executor.Execute(&sproto.ExecuteRequest{
 			JobName: job.Name,
 			Config:  exc,
 		}, &statusAgentHelper{
@@ -96,7 +98,9 @@ func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_A
 			err = errors.New(out.Error)
 		}
 		if err != nil {
-			as.logger.WithError(err).WithField("job", job.Name).WithField("plugin", executor).Error("grpc_agent: command error output")
+			as.logger.Error().Err(err).Str("job", job.Name).Any("plugin", executor).Msg(
+				"grpc_agent: command error output")
+
 			success = false
 			_, _ = output.Write([]byte(err.Error() + "\n"))
 		} else {
@@ -107,7 +111,7 @@ func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_A
 			_, _ = output.Write(out.Output)
 		}
 	} else {
-		as.logger.WithField("executor", jex).Error("grpc_agent: Specified executor is not present")
+		as.logger.Error().Str("executor", jex).Msg("grpc_agent: Specified executor is not present")
 		_, _ = output.Write([]byte("grpc_agent: Specified executor is not present"))
 	}
 
@@ -115,15 +119,17 @@ func (as *AgentServer) AgentRun(req *types.AgentRunRequest, stream types.Agent_A
 	execution.Success = success
 	execution.Output = output.Bytes()
 
-	runningExecutions.Delete(execution.GetGroup())
+	sagent.RunningExecutions.Delete(execution.GetGroup())
 
 	// Send the final execution
-	if err := stream.Send(&types.AgentRunStream{
+	if err := stream.Send(&sproto.AgentRunStream{
 		Execution: execution,
 	}); err != nil {
 		// In case of error means that maybe the server is gone so fallback to ExecutionDone
-		as.logger.WithError(err).WithField("job", job.Name).Error("grpc_agent: error sending the final execution, falling back to ExecutionDone")
-		rpcServer, err := as.agent.checkAndSelectServer()
+		as.logger.Error().Err(err).Str("job", job.Name).Msg(
+			"grpc_agent: error sending the final execution, falling back to ExecutionDone")
+
+		rpcServer, err := as.agent.CheckAndSelectServer()
 		if err != nil {
 			return err
 		}
