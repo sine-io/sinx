@@ -23,11 +23,13 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
-	"github.com/sirupsen/logrus"
 	"github.com/soheilhy/cmux"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
 	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -47,7 +49,7 @@ var (
 	// ErrNoSuitableServer returns an error in case no suitable server to send the request is found.
 	ErrNoSuitableServer = errors.New("no suitable server found to send the request, aborting")
 
-	RunningExecutions sync.Map
+	runningExecutions sync.Map
 )
 
 type RaftStore interface {
@@ -143,7 +145,7 @@ type AgentOption func(agent *Agent)
 // and running a Dkron instance.
 func NewAgent(config *sxconfig.Config, options ...AgentOption) *Agent {
 	agent := &Agent{
-		Config:       config,
+		config:       config,
 		retryJoinCh:  make(chan error),
 		serverLookup: NewServerLookup(),
 	}
@@ -153,6 +155,26 @@ func NewAgent(config *sxconfig.Config, options ...AgentOption) *Agent {
 	}
 
 	return agent
+}
+
+// SetLogger sets the logger for the agent.
+func (a *Agent) SetLogger(l zerolog.Logger) {
+	a.logger = l
+}
+
+// Logger returns the agent's logger.
+func (a *Agent) Logger() zerolog.Logger {
+	return a.logger
+}
+
+// Config returns the agent's config.
+func (a *Agent) Config() *sxconfig.Config {
+	return a.config
+}
+
+// SetConfig sets the agent's config.
+func (a *Agent) SetConfig(c *sxconfig.Config) {
+	a.config = c
 }
 
 // RetryJoinCh is a channel that transports errors
@@ -168,6 +190,90 @@ func (a *Agent) JoinLAN(addrs []string) (int, error) {
 	return a.serf.Join(addrs, true)
 }
 
+// Start the current agent by running all the necessary
+// checks and server or client routines.
+func (a *Agent) Start() error {
+
+	// Initialize rand with current time
+	// rand.Seed(time.Now().UnixNano()) // sine.2025.5.29, use math/rand/v2
+
+	// Normalize configured addresses
+	if err := a.config.NormalizeAddrs(); err != nil && !errors.Is(err, sxconfig.ErrResolvingHost) {
+		return err
+	}
+
+	s, err := a.setupSerf()
+	if err != nil {
+		return fmt.Errorf("agent: Can not setup serf, %s", err)
+	}
+	a.serf = s
+
+	// start retry join
+	if len(a.config.RetryJoinLAN) > 0 {
+		a.retryJoinLAN()
+	} else {
+		_, err := a.join(a.config.StartJoin, true)
+		if err != nil {
+			a.logger.Warn().Err(err).Any("servers", a.config.StartJoin).Msg("agent: Can not join")
+		}
+	}
+
+	if err := initMetrics(a); err != nil {
+		a.logger.Fatal().Msg("agent: Can not setup metrics")
+	}
+
+	// Expose the node name
+	expNode.Set(a.config.NodeName)
+
+	//Use the value of "RPCPort" if AdvertiseRPCPort has not been set
+	if a.config.AdvertiseRPCPort <= 0 {
+		a.config.AdvertiseRPCPort = a.config.RPCPort
+	}
+
+	// Create a listener for RPC subsystem
+	addr := a.bindRPCAddr()
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		a.logger.Fatal().Err(err)
+	}
+	a.listener = l
+
+	if a.config.Server {
+		a.StartServer()
+	} else {
+		var opts []grpc.ServerOption
+		if a.TLSConfig != nil {
+			tc := credentials.NewTLS(a.TLSConfig)
+			opts = append(opts, grpc.Creds(tc))
+		}
+
+		grpcServer := grpc.NewServer(opts...)
+		as := NewGRPCAgentServer(a, a.logger)
+		sxproto.RegisterAgentServer(grpcServer, as)
+		go func() {
+			if err := grpcServer.Serve(l); err != nil {
+				a.logger.Fatal().Err(err)
+			}
+		}()
+	}
+
+	if a.GRPCClient == nil {
+		a.GRPCClient = NewGRPCClient(nil, a, a.logger)
+	}
+
+	tags := a.serf.LocalMember().Tags
+	tags["rpc_addr"] = a.advertiseRPCAddr() // Address that clients will use to RPC to servers
+	tags["port"] = strconv.Itoa(a.config.AdvertiseRPCPort)
+	if err := a.serf.SetTags(tags); err != nil {
+		return fmt.Errorf("agent: Error setting tags: %w", err)
+	}
+
+	go a.eventLoop()
+	a.ready = true
+
+	return nil
+}
+
 // Stop stops an agent, if the agent is a server and is running for election
 // stop running for election, if this server was the leader
 // this will force the cluster to elect a new leader and start a new scheduler.
@@ -175,7 +281,7 @@ func (a *Agent) JoinLAN(addrs []string) (int, error) {
 // was participating in leader election or not (local storage).
 // Then actually leave the cluster.
 func (a *Agent) Stop() error {
-	a.logger.Info("agent: Called member stop, now stopping")
+	a.logger.Info().Msg("agent: Called member stop, now stopping")
 
 	if a.config.Server {
 		if a.sched.Started() {
@@ -216,7 +322,7 @@ func (a *Agent) UpdateTags(tags map[string]string) {
 	// Set new collection of tags
 	err := a.serf.SetTags(tags)
 	if err != nil {
-		a.logger.Warnf("Setting tags unsuccessful: %s.", err.Error())
+		a.logger.Warn().Msgf("Setting tags unsuccessful: %s.", err.Error())
 	}
 }
 
@@ -225,11 +331,6 @@ func (a *Agent) setupRaft() error {
 		if a.config.BootstrapExpect == 1 {
 			a.config.Bootstrap = true
 		}
-	}
-
-	logger := io.Discard
-	if a.logger.Logger.Level == logrus.DebugLevel {
-		logger = a.logger.Logger.Writer()
 	}
 
 	transConfig := &raft.NetworkTransportConfig{
@@ -241,19 +342,26 @@ func (a *Agent) setupRaft() error {
 	transport := raft.NewNetworkTransportWithConfig(transConfig)
 	a.raftTransport = transport
 
-	config := raft.DefaultConfig()
+	raftCfg := raft.DefaultConfig()
 
 	// Raft performance
 	raftMultiplier := a.config.RaftMultiplier
 	if raftMultiplier < 1 || raftMultiplier > 10 {
 		return fmt.Errorf("raft-multiplier cannot be %d. Must be between 1 and 10", raftMultiplier)
 	}
-	config.HeartbeatTimeout = config.HeartbeatTimeout * time.Duration(raftMultiplier)
-	config.ElectionTimeout = config.ElectionTimeout * time.Duration(raftMultiplier)
-	config.LeaderLeaseTimeout = config.LeaderLeaseTimeout * time.Duration(a.config.RaftMultiplier)
+	raftCfg.HeartbeatTimeout = raftCfg.HeartbeatTimeout * time.Duration(raftMultiplier)
+	raftCfg.ElectionTimeout = raftCfg.ElectionTimeout * time.Duration(raftMultiplier)
+	raftCfg.LeaderLeaseTimeout = raftCfg.LeaderLeaseTimeout * time.Duration(a.config.RaftMultiplier)
 
-	config.LogOutput = logger
-	config.LocalID = raft.ServerID(a.config.NodeName)
+	raftCfg.LocalID = raft.ServerID(a.config.NodeName)
+
+	output := io.Discard
+	if a.logger.GetLevel() == zerolog.DebugLevel {
+		// TODO: set raft log output from os.Stderr to zerolog's output
+		raftCfg.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
+	} else {
+		raftCfg.LogOutput = output
+	}
 
 	// Build an all in-memory setup for dev mode, otherwise prepare a full
 	// disk-based setup.
@@ -270,7 +378,7 @@ func (a *Agent) setupRaft() error {
 		var err error
 		// Create the snapshot store. This allows the Raft to truncate the log to
 		// mitigate the issue of having an unbounded replicated log.
-		snapshots, err = raft.NewFileSnapshotStore(filepath.Join(a.config.DataDir, "raft"), 3, logger)
+		snapshots, err = raft.NewFileSnapshotStore(filepath.Join(a.config.DataDir, "raft"), 3, output)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)
 		}
@@ -296,7 +404,7 @@ func (a *Agent) setupRaft() error {
 		// Check for peers.json file for recovery
 		peersFile := filepath.Join(a.config.DataDir, "raft", "peers.json")
 		if _, err := os.Stat(peersFile); err == nil {
-			a.logger.Info("found peers.json file, recovering Raft configuration...")
+			a.logger.Info().Msg("found peers.json file, recovering Raft configuration...")
 			var configuration raft.Configuration
 			configuration, err = raft.ReadConfigJSON(peersFile)
 			if err != nil {
@@ -304,17 +412,17 @@ func (a *Agent) setupRaft() error {
 			}
 			store, err := NewStore(a.logger)
 			if err != nil {
-				a.logger.WithError(err).Fatal("dkron: Error initializing store")
+				a.logger.Fatal().Err(err).Msg("dkron: Error initializing store")
 			}
 			tmpFsm := newFSM(store, nil, a.logger)
-			if err := raft.RecoverCluster(config, tmpFsm,
+			if err := raft.RecoverCluster(raftCfg, tmpFsm,
 				logStore, stableStore, snapshots, transport, configuration); err != nil {
 				return fmt.Errorf("recovery failed: %v", err)
 			}
 			if err := os.Remove(peersFile); err != nil {
 				return fmt.Errorf("recovery failed to delete peers.json, please delete manually (see peers.info for details): %v", err)
 			}
-			a.logger.Info("deleted peers.json file after successful recovery")
+			a.logger.Info().Msg("deleted peers.json file after successful recovery")
 		}
 	}
 
@@ -329,12 +437,12 @@ func (a *Agent) setupRaft() error {
 			configuration := raft.Configuration{
 				Servers: []raft.Server{
 					{
-						ID:      config.LocalID,
+						ID:      raftCfg.LocalID,
 						Address: transport.LocalAddr(),
 					},
 				},
 			}
-			if err := raft.BootstrapCluster(config, logStore, stableStore, snapshots, transport, configuration); err != nil {
+			if err := raft.BootstrapCluster(raftCfg, logStore, stableStore, snapshots, transport, configuration); err != nil {
 				return err
 			}
 		}
@@ -343,7 +451,7 @@ func (a *Agent) setupRaft() error {
 	// Instantiate the Raft systems. The second parameter is a finite state machine
 	// which stores the actual kv pairs and is operated upon through Apply().
 	fsm := newFSM(a.Store, a.ProAppliers, a.logger)
-	rft, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshots, transport)
+	rft, err := raft.NewRaft(raftCfg, fsm, logStore, stableStore, snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
@@ -423,7 +531,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.ReconnectTimeout, err = time.ParseDuration(config.SerfReconnectTimeout)
 
 	if err != nil {
-		a.logger.Fatal(err)
+		a.logger.Fatal().Err(err).Send()
 	}
 
 	// Create a channel to listen for events from Serf
@@ -431,11 +539,12 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.EventCh = a.eventCh
 
 	// Start Serf
-	a.logger.Info("agent: Dkron agent starting")
+	a.logger.Info().Msg("agent: Dkron agent starting")
 
-	if a.logger.Logger.Level == logrus.DebugLevel {
-		serfConfig.LogOutput = a.logger.Logger.Writer()
-		serfConfig.MemberlistConfig.LogOutput = a.logger.Logger.Writer()
+	if a.logger.GetLevel() == zerolog.DebugLevel {
+		// TODO: set serf log output from os.Stderr to zerolog's output
+		serfConfig.LogOutput = a.logger                  // zerolog.Logger already implements io.Writer, does it work?
+		serfConfig.MemberlistConfig.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
 	} else {
 		serfConfig.LogOutput = io.Discard
 		serfConfig.MemberlistConfig.LogOutput = io.Discard
@@ -444,7 +553,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	// Create serf first
 	serf, err := serf.Create(serfConfig)
 	if err != nil {
-		a.logger.Error(err)
+		a.logger.Error().Err(err).Send()
 		return nil, err
 	}
 	return serf, nil
@@ -455,7 +564,7 @@ func (a *Agent) StartServer() {
 	if a.Store == nil {
 		s, err := NewStore(a.logger)
 		if err != nil {
-			a.logger.WithError(err).Fatal("dkron: Error initializing store")
+			a.logger.Fatal().Err(err).Msg("dkron: Error initializing store")
 		}
 		a.Store = s
 	}
@@ -491,7 +600,7 @@ func (a *Agent) StartServer() {
 
 		go func() {
 			if err := tlsm.Serve(); err != nil {
-				a.logger.Fatal(err)
+				a.logger.Fatal().Err(err)
 			}
 		}()
 	} else {
@@ -510,21 +619,21 @@ func (a *Agent) StartServer() {
 	}
 
 	if err := a.GRPCServer.Serve(grpcl); err != nil {
-		a.logger.WithError(err).Fatal("agent: RPC server failed to start")
+		a.logger.Fatal().Err(err).Msg("agent: RPC server failed to start")
 	}
 
 	if err := a.raftLayer.Open(raftl); err != nil {
-		a.logger.Fatal(err)
+		a.logger.Fatal().Err(err).Send()
 	}
 
 	if err := a.setupRaft(); err != nil {
-		a.logger.WithError(err).Fatal("agent: Raft layer failed to start")
+		a.logger.Fatal().Err(err).Msg("agent: Raft layer failed to start")
 	}
 
 	// Start serving everything
 	go func() {
 		if err := tcpm.Serve(); err != nil {
-			a.logger.Fatal(err)
+			a.logger.Fatal().Err(err).Send()
 		}
 	}()
 	go a.monitorLeadership()
@@ -591,21 +700,22 @@ func (a *Agent) LocalServers() (members []*ServerParts) {
 // Listens to events from Serf and handle the event.
 func (a *Agent) eventLoop() {
 	serfShutdownCh := a.serf.ShutdownCh()
-	a.logger.Info("agent: Listen for events")
+	a.logger.Info().Msg("agent: Listen for events")
 	for {
 		select {
 		case e := <-a.eventCh:
-			a.logger.WithField("event", e.String()).Info("agent: Received event")
+			a.logger.Info().Str("event", e.String()).Msg("agent: Received event")
+
 			metrics.IncrCounter([]string{"agent", "event_received", e.String()}, 1)
 
 			// Log all member events
 			if me, ok := e.(serf.MemberEvent); ok {
 				for _, member := range me.Members {
-					a.logger.WithFields(logrus.Fields{
-						"node":   a.config.NodeName,
-						"member": member.Name,
-						"event":  e.EventType(),
-					}).Debug("agent: Member event")
+					a.logger.Debug().
+						Str("node", a.config.NodeName).
+						Str("member", member.Name).
+						Any("event", e.EventType()).
+						Msg("agent: Member event")
 				}
 
 				if a.MemberEventHandler != nil {
@@ -627,12 +737,13 @@ func (a *Agent) eventLoop() {
 					a.localMemberEvent(me)
 				case serf.EventUser, serf.EventQuery: // Ignore
 				default:
-					a.logger.WithField("event", e.String()).Warn("agent: Unhandled serf event")
+					a.logger.Warn().Str("event", e.String()).Msg("agent: Unhandled serf event")
 				}
 			}
 
 		case <-serfShutdownCh:
-			a.logger.Warn("agent: Serf shutdown detected, quitting")
+			a.logger.Warn().Msg("agent: Serf shutdown detected, quitting")
+
 			return
 		}
 	}
@@ -640,20 +751,23 @@ func (a *Agent) eventLoop() {
 
 // Join asks the Serf instance to join. See the Serf.Join function.
 func (a *Agent) join(addrs []string, replay bool) (n int, err error) {
-	a.logger.Infof("agent: joining: %v replay: %v", addrs, replay)
+	a.logger.Info().Msgf("agent: joining: %v replay: %v", addrs, replay)
+
 	n, err = a.serf.Join(addrs, !replay)
 	if n > 0 {
-		a.logger.Infof("agent: joined: %d nodes", n)
+		a.logger.Info().Msgf("agent: joined: %d nodes", n)
 	}
 	if err != nil {
-		a.logger.Warnf("agent: error joining: %v", err)
+		a.logger.Warn().Msgf("agent: error joining: %v", err)
 	}
+
 	return
 }
 
 func (a *Agent) getTargetNodes(tags map[string]string, selectFunc func([]Node) int) []Node {
 	bareTags, cardinality := cleanTags(tags, a.logger)
 	nodes := a.getQualifyingNodes(a.serf.Members(), bareTags)
+
 	return selectNodes(nodes, cardinality, selectFunc)
 }
 
@@ -666,6 +780,7 @@ func (a *Agent) getQualifyingNodes(nodes []Node, bareTags map[string]string) []N
 			node.Tags["region"] == a.config.Region &&
 			nodeMatchesTags(node, bareTags)
 	})
+
 	return qualifiers
 }
 
@@ -721,7 +836,7 @@ func (a *Agent) bindRPCAddr() string {
 
 // applySetJob is a helper method to be called when
 // a job property need to be modified from the leader.
-func (a *Agent) applySetJob(job *proto.Job) error {
+func (a *Agent) applySetJob(job *sxproto.Job) error {
 	cmd, err := Encode(SetJobType, job)
 	if err != nil {
 		return err
@@ -757,8 +872,8 @@ func (a *Agent) GetRunningJobs() int {
 }
 
 // GetActiveExecutions returns running executions globally
-func (a *Agent) GetActiveExecutions() ([]*proto.Execution, error) {
-	var executions []*proto.Execution
+func (a *Agent) GetActiveExecutions() ([]*sxproto.Execution, error) {
+	var executions []*sxproto.Execution
 
 	for _, s := range a.LocalServers() {
 		exs, err := a.GRPCClient.GetActiveExecutions(s.RPCAddr.String())
@@ -811,12 +926,12 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 }
 
 func (a *Agent) startReporter() {
-	if a.Config.DisableUsageStats || a.Config.DevMode {
+	if a.config.DisableUsageStats || a.config.DevMode {
 		a.logger.Info().Msg("agent: usage report client disabled")
 		return
 	}
 
-	clusterID, err := a.Config.Hash()
+	clusterID, err := a.config.Hash()
 	if err != nil {
 		a.logger.Warn().Msgf("agent: unable to hash the service configuration:", err.Error())
 		return

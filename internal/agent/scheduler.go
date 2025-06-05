@@ -10,7 +10,6 @@ import (
 	"github.com/armon/go-metrics"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog"
-	"github.com/sirupsen/logrus"
 
 	sxextcron "github.com/sine-io/sinx/extcron"
 )
@@ -100,7 +99,7 @@ func (s *Scheduler) Restart(jobs []*Job, agent *Agent) {
 	s.Stop()
 
 	if err := s.Start(jobs, agent); err != nil {
-		s.logger.Fatal().Err(err)
+		s.logger.Fatal().Err(err).Send()
 	}
 }
 
@@ -156,11 +155,8 @@ func (s *Scheduler) AddJob(job *Job) error {
 		return nil
 	}
 
-	s.logger.Debug()
-
-	s.logger.WithFields(logrus.Fields{
-		"job": job.Name,
-	}).Debug("scheduler: Adding job to cron")
+	s.logger.Debug().Str("job", job.Name).
+		Msg("scheduler: Adding job to cron")
 
 	// If Timezone is set on the job, and not explicitly in its schedule,
 	// AND its not a descriptor (that don't support timezones), add the
@@ -186,9 +182,9 @@ func (s *Scheduler) AddJob(job *Job) error {
 
 // RemoveJob removes a job from the cron scheduler if it exists.
 func (s *Scheduler) RemoveJob(jobName string) {
-	s.logger.WithFields(logrus.Fields{
-		"job": jobName,
-	}).Debug("scheduler: Removing job from cron")
+
+	s.logger.Debug().Str("job", jobName).
+		Msg("scheduler: Removing job from cron")
 
 	if ej, ok := s.GetEntryJob(jobName); ok {
 		s.Cron.Remove(ej.entry.ID)

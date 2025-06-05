@@ -4,10 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/rs/zerolog"
-
 	"github.com/armon/circbuf"
 	metrics "github.com/armon/go-metrics"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sxproto "github.com/sine-io/sinx/types"
@@ -68,7 +67,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 
 	// Send the first update with the initial execution state to be stored in the server
 	execution.StartedAt = timestamppb.Now()
-	execution.NodeName = as.agent.Config.NodeName
+	execution.NodeName = as.agent.config.NodeName
 
 	if err := stream.Send(&sxproto.AgentRunStream{
 		Execution: execution,
@@ -84,7 +83,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 	if executor, ok := as.agent.ExecutorPlugins[jex]; ok {
 		as.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
 
-		RunningExecutions.Store(execution.GetGroup(), execution)
+		runningExecutions.Store(execution.GetGroup(), execution)
 		out, err := executor.Execute(&sxproto.ExecuteRequest{
 			JobName: job.Name,
 			Config:  exc,
@@ -118,7 +117,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 	execution.Success = success
 	execution.Output = output.Bytes()
 
-	RunningExecutions.Delete(execution.GetGroup())
+	runningExecutions.Delete(execution.GetGroup())
 
 	// Send the final execution
 	if err := stream.Send(&sxproto.AgentRunStream{
@@ -132,7 +131,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 		if err != nil {
 			return err
 		}
-		return as.agent.GRPCClient.ExecutionDone(rpcServer, sxscheduler.NewExecutionFromProto(execution))
+		return as.agent.GRPCClient.ExecutionDone(rpcServer, NewExecutionFromProto(execution))
 	}
 
 	return nil

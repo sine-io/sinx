@@ -18,7 +18,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	sxplugin "github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/types"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -238,7 +237,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 			return nil, err
 		}
 
-		return &types.ExecutionDoneResponse{
+		return &sxproto.ExecutionDoneResponse{
 			From:    grpcs.agent.config.NodeName,
 			Payload: []byte("retry"),
 		}, nil
@@ -278,16 +277,16 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 	}
 
 	if job.Ephemeral && job.Status == StatusSuccess {
-		if _, err := grpcs.DeleteJob(ctx, &types.DeleteJobRequest{JobName: job.Name}); err != nil {
+		if _, err := grpcs.DeleteJob(ctx, &sxproto.DeleteJobRequest{JobName: job.Name}); err != nil {
 			return nil, err
 		}
-		return &types.ExecutionDoneResponse{
+		return &sxproto.ExecutionDoneResponse{
 			From:    grpcs.agent.config.NodeName,
 			Payload: []byte("deleted"),
 		}, nil
 	}
 
-	return &types.ExecutionDoneResponse{
+	return &sxproto.ExecutionDoneResponse{
 		From:    grpcs.agent.config.NodeName,
 		Payload: []byte("saved"),
 	}, nil
@@ -299,7 +298,7 @@ func (grpcs *GRPCServer) Leave(ctx context.Context, in *emptypb.Empty) (*emptypb
 }
 
 // RunJob runs a job in the cluster
-func (grpcs *GRPCServer) RunJob(ctx context.Context, req *types.RunJobRequest) (*types.RunJobResponse, error) {
+func (grpcs *GRPCServer) RunJob(ctx context.Context, req *sxproto.RunJobRequest) (*sxproto.RunJobResponse, error) {
 	ex := NewExecution(req.JobName)
 	job, err := grpcs.agent.Run(req.JobName, ex)
 	if err != nil {
@@ -307,16 +306,16 @@ func (grpcs *GRPCServer) RunJob(ctx context.Context, req *types.RunJobRequest) (
 	}
 	jpb := job.ToProto()
 
-	return &types.RunJobResponse{Job: jpb}, nil
+	return &sxproto.RunJobResponse{Job: jpb}, nil
 }
 
 // ToggleJob toggle the enablement of a job
-func (grpcs *GRPCServer) ToggleJob(ctx context.Context, getJobReq *types.ToggleJobRequest) (*types.ToggleJobResponse, error) {
+func (grpcs *GRPCServer) ToggleJob(ctx context.Context, getJobReq *sxproto.ToggleJobRequest) (*sxproto.ToggleJobResponse, error) {
 	return nil, nil
 }
 
 // RaftGetConfiguration get raft config
-func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.Empty) (*types.RaftGetConfigurationResponse, error) {
+func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.Empty) (*sxproto.RaftGetConfigurationResponse, error) {
 	// We can't fetch the leader and the configuration atomically with
 	// the current Raft API.
 	future := grpcs.agent.raft.GetConfiguration()
@@ -338,7 +337,7 @@ func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.E
 
 	// Fill out the reply.
 	leader := grpcs.agent.raft.Leader()
-	reply := &types.RaftGetConfigurationResponse{}
+	reply := &sxproto.RaftGetConfigurationResponse{}
 	reply.Index = future.Index()
 	for _, server := range future.Configuration().Servers {
 		node := "(unknown)"
@@ -350,7 +349,7 @@ func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.E
 			}
 		}
 
-		entry := &types.RaftServer{
+		entry := &sxproto.RaftServer{
 			Id:           string(server.ID),
 			Node:         node,
 			Address:      string(server.Address),
@@ -367,7 +366,7 @@ func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.E
 // quorum but no longer known to Serf or the catalog) by address in the form of
 // "IP:port". The reply argument is not used, but is required to fulfill the RPC
 // interface.
-func (grpcs *GRPCServer) RaftRemovePeerByID(ctx context.Context, in *types.RaftRemovePeerByIDRequest) (*emptypb.Empty, error) {
+func (grpcs *GRPCServer) RaftRemovePeerByID(ctx context.Context, in *sxproto.RaftRemovePeerByIDRequest) (*emptypb.Empty, error) {
 	// Since this is an operation designed for humans to use, we will return
 	// an error if the supplied id isn't among the peers since it's
 	// likely they screwed up.
@@ -405,24 +404,24 @@ REMOVE:
 }
 
 // GetActiveExecutions returns the active executions on the server node
-func (grpcs *GRPCServer) GetActiveExecutions(ctx context.Context, in *emptypb.Empty) (*types.GetActiveExecutionsResponse, error) {
+func (grpcs *GRPCServer) GetActiveExecutions(ctx context.Context, in *emptypb.Empty) (*sxproto.GetActiveExecutionsResponse, error) {
 	defer metrics.MeasureSince([]string{"grpc", "agent_run"}, time.Now())
 
-	var executions []*types.Execution
+	var executions []*sxproto.Execution
 	grpcs.agent.activeExecutions.Range(func(k, v interface{}) bool {
-		e := v.(*types.Execution)
+		e := v.(*sxproto.Execution)
 		executions = append(executions, e)
 		return true
 	})
 
-	return &types.GetActiveExecutionsResponse{
+	return &sxproto.GetActiveExecutionsResponse{
 		Executions: executions,
 	}, nil
 }
 
 // SetExecution broadcast a state change to the cluster members that will store the execution.
 // This only works on the leader
-func (grpcs *GRPCServer) SetExecution(ctx context.Context, execution *types.Execution) (*emptypb.Empty, error) {
+func (grpcs *GRPCServer) SetExecution(ctx context.Context, execution *sxproto.Execution) (*emptypb.Empty, error) {
 	defer metrics.MeasureSince([]string{"grpc", "set_execution"}, time.Now())
 	grpcs.logger.Debug().
 		Str("execution", execution.Key()).

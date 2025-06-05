@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 func TestProcess(t *testing.T) {
 	now := timestamppb.Now()
 
-	pa := &plugin.ProcessorArgs{
-		Execution: types.Execution{
+	pa := &sxplugin.ProcessorArgs{
+		Execution: sxproto.Execution{
 			StartedAt: now,
 			NodeName:  "testNode",
 			Output:    []byte("test"),
 		},
-		Config: plugin.Config{
+		Config: sxplugin.Config{
 			"forward": "false",
 			"log_dir": "/tmp",
 		},

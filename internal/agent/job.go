@@ -410,7 +410,7 @@ func (j *Job) isRunnable(logger zerolog.Logger) bool {
 				logger.Info().
 					Str("job", j.Name).
 					Str("concurrency", j.Concurrency).
-					Str("job_status", e.Status).
+					Str("job_status", j.Status).
 					Msg("job: Skipping concurrent execution")
 
 				return false

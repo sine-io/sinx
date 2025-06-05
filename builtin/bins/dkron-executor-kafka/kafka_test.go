@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	dktypes "github.com/sine-io/sinx/types"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 func TestProduceExecuteWithKey(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJobWithKey",
 		Config: map[string]string{
 			"topic":         "test",
@@ -28,7 +28,7 @@ func TestProduceExecuteWithKey(t *testing.T) {
 }
 
 func TestProduceExecuteWithoutKey(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJobWithoutKey",
 		Config: map[string]string{
 			"topic":         "test",
@@ -47,7 +47,7 @@ func TestProduceExecuteWithoutKey(t *testing.T) {
 }
 
 func TestProduceExecuteWithSASL_SHA256(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJobWithSASL_SHA256",
 		Config: map[string]string{
 			"topic":                 "test",
@@ -71,7 +71,7 @@ func TestProduceExecuteWithSASL_SHA256(t *testing.T) {
 }
 
 func TestProduceExecuteWithSASL_SHA512(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJobWithSASL_SHA512",
 		Config: map[string]string{
 			"topic":                 "test",

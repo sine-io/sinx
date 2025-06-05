@@ -49,7 +49,7 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 	if len(targetNodes) < 1 {
 		return nil, fmt.Errorf("no target nodes found to run job %s", ex.JobName)
 	}
-	a.logger.WithField("nodes", targetNodes).Debug("agent: Filtered nodes to run")
+	a.logger.Debug().Any("nodes", targetNodes).Msg("agent: Filtered nodes to run")
 
 	var wg sync.WaitGroup
 	for _, v := range targetNodes {
@@ -63,21 +63,17 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 		wg.Add(1)
 		go func(node string, wg *sync.WaitGroup) {
 			defer wg.Done()
-			a.logger.WithFields(map[string]interface{}{
-				"job_name": job.Name,
-				"node":     node,
-			}).Info("agent: Calling AgentRun")
+
+			a.logger.Info().Str("jog_name", job.Name).Str("node", node).Msg("agent: Calling AgentRun")
 
 			err := a.GRPCClient.AgentRun(node, job.ToProto(), ex.ToProto())
 			if err != nil {
-				a.logger.WithFields(map[string]interface{}{
-					"job_name": job.Name,
-					"node":     node,
-				}).Error("agent: Error calling AgentRun")
+				a.logger.Error().Str("job_name", job.Name).Str("node", node).Err(err).Msg("agent: Error calling AgentRun")
 			}
 		}(addr, &wg)
 	}
 
 	wg.Wait()
+
 	return job, nil
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/armon/circbuf"
 
-	dkplugin "github.com/sine-io/sinx/plugin"
-	dktypes "github.com/sine-io/sinx/types"
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -33,10 +33,10 @@ type Kafka struct {
 //	    "message": "",
 //	    "topic": "publishTopic"
 //	}
-func (s *Kafka) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) (*dktypes.ExecuteResponse, error) {
+func (s *Kafka) Execute(args *sxproto.ExecuteRequest, cb sxplugin.StatusHelper) (*sxproto.ExecuteResponse, error) {
 
 	out, err := s.ExecuteImpl(args)
-	resp := &dktypes.ExecuteResponse{Output: out}
+	resp := &sxproto.ExecuteResponse{Output: out}
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -44,7 +44,7 @@ func (s *Kafka) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) 
 }
 
 // ExecuteImpl produce message on Kafka broker
-func (s *Kafka) ExecuteImpl(args *dktypes.ExecuteRequest) ([]byte, error) {
+func (s *Kafka) ExecuteImpl(args *sxproto.ExecuteRequest) ([]byte, error) {
 
 	output, _ := circbuf.NewBuffer(maxBufSize)
 

@@ -3,23 +3,28 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
+	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	sxflagset "github.com/sine-io/sinx/cmd/flagset"
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxlogging "github.com/sine-io/sinx/logging"
 )
 
 var (
-	cfgFile    string
-	rpcAddr    string
-	ip         string
+	cfgFile string
+	cfg     = sxconfig.DefaultConfig()
+
+	rpcAddr string
+	ip      string
+
 	initErrors []error
-	logger     zerolog.Logger
-	cfg        = sxconfig.DefaultConfig()
 )
 
 func init() {
@@ -87,15 +92,70 @@ func initConfig() {
 	}
 	cfg.Tags = tags
 
-	// initialized logger used in the cmd package
-	// logging.L also initialized
-	logger = sxlogging.GetLogger(cfg)
+	initLogger()
+}
 
-	if len(initErrors) > 0 {
-		for _, err := range initErrors {
-			logger.Error().Err(err).Msg("Initialization error")
-		}
-	} else {
-		logger.Info().Msg("Configuration loaded successfully")
+// initLogger init zerolog.Logger
+func initLogger() {
+
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+
+	logLevel, err := zerolog.ParseLevel(cfg.LogLevel)
+
+	if err != nil {
+		// If the log level is invalid, default to INFO
+		logLevel = zerolog.InfoLevel
+
+		initErrors = append(initErrors, fmt.Errorf("invalid log level '%s', defaulting to INFO: %w", logLevel, err))
 	}
+
+	// 1. Set the global log level
+	// zerolog's default level is Debug
+	if logLevel != zerolog.DebugLevel {
+		zerolog.SetGlobalLevel(logLevel)
+	}
+
+	// 2. Set the output format
+	fileLogger := &lumberjack.Logger{
+		Filename:   "logs/app.log",
+		MaxSize:    5, //
+		MaxBackups: 10,
+		MaxAge:     14,
+		Compress:   true,
+	}
+	writers := zerolog.MultiLevelWriter(zerolog.NewConsoleWriter(), fileLogger)
+
+	// 3. Customize the global logger (the one used by package level methods).
+	zlog.Logger = zerolog.New(writers).
+		With().
+		Str("node", cfg.NodeName). // Add node information to the logger
+		Timestamp().
+		Caller(). // Add file and line number to log
+		Logger()
+
+	// 4. log the init errors
+	for _, err := range initErrors {
+		zlog.Error().Err(err).Msg("Logger initialization error")
+	}
+	initErrors = nil // Clear errors after logging them
+
+	// 5. add hooks
+	zlog.Hook(&LogSplitter{})
+}
+
+// LogSplitter is a zerolog hook that splits logs based on their level.
+// It can be used to customize how logs are handled based on their severity.
+// TODO: Some hooks are not used yet, but they can be useful in the future.
+type LogSplitter struct{}
+
+func (l *LogSplitter) Run(e *zerolog.Event, level zerolog.Level, message string) {
+	// switch level {
+	// case zerolog.ErrorLevel, zerolog.PanicLevel, zerolog.FatalLevel:
+	// 	e.Str("level", "error").Msg(message)
+	// case zerolog.WarnLevel, zerolog.DebugLevel, zerolog.InfoLevel, zerolog.TraceLevel:
+	// 	e.Str("level", "info").Msg(message)
+	// default:
+	// 	e.Str("level", "info").Msg(message)
+	// }
 }

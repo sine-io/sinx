@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	dktypes "github.com/sine-io/sinx/types"
+
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 func TestPublishExecute(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJob",
 		Config: map[string]string{
 			"bucket":     "bkt01",
@@ -39,7 +40,7 @@ func TestPublishExecuteConcurrent(t *testing.T) {
 			defer wg.Done()
 			s3 := &S3{}
 
-			pa := &dktypes.ExecuteRequest{
+			pa := &sxproto.ExecuteRequest{
 				JobName: "testJob",
 				Config: map[string]string{
 					"bucket":     "bkt01",

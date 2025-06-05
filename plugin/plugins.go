@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
-	"github.com/sine-io/sinx/logging"
+	zlog "github.com/rs/zerolog/log"
 )
 
 var embededPlugins = []string{"shell", "http"}
@@ -23,7 +23,7 @@ type Plugins struct {
 	NodeName   string
 }
 
-// Discover plugins located on disk
+// DiscoverPlugins located on disk
 //
 // We look in the following places for plugins:
 //
@@ -134,7 +134,7 @@ func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (
 	config.Plugins = PluginMap
 	config.SyncStdout = os.Stdout
 	config.SyncStderr = os.Stderr
-	config.Logger = &dkron.HCLogAdapter{Logger: logging.InitLogger(p.LogLevel, p.NodeName), LoggerName: "plugins"}
+	config.Logger = &HCLogAdapter{Logger: zlog.Logger, LoggerName: "plugins"}
 
 	switch pluginType {
 	case ProcessorPluginName:

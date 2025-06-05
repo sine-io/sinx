@@ -2,14 +2,14 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	dkplugin "github.com/sine-io/sinx/plugin"
+	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 func main() {
 	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: dkplugin.Handshake,
+		HandshakeConfig: sxplugin.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"executor": &dkplugin.ExecutorPlugin{Executor: &Kafka{}},
+			"executor": &sxplugin.ExecutorPlugin{Executor: &Kafka{}},
 		},
 
 		// A non-nil value here enables gRPC serving for this plugin...

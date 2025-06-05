@@ -2,8 +2,6 @@ package agent
 
 import (
 	"crypto/tls"
-
-	sxstor "github.com/sine-io/sinx/internal/storage"
 )
 
 // WithPlugins option to set plugins to the agent
@@ -22,7 +20,7 @@ func WithTransportCredentials(tls *tls.Config) AgentOption {
 }
 
 // WithStore set store in the agent
-func WithStore(store sxstor.Storage) AgentOption {
+func WithStore(store Storage) AgentOption {
 	return func(agent *Agent) {
 		agent.Store = store
 	}

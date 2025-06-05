@@ -1,4 +1,4 @@
-package logging
+package plugin
 
 import (
 	"bytes"
@@ -7,11 +7,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/rs/zerolog"
-	"github.com/sirupsen/logrus"
 )
 
 // HCLogAdapter implements the hclog interface, and wraps it
-// around a Logrus entry
+// around a zerolog entry
 type HCLogAdapter struct {
 	Logger     zerolog.Logger
 	LoggerName string
@@ -26,22 +25,26 @@ func (*HCLogAdapter) Trace(_ string, _ ...interface{}) {}
 
 // Debug logging level message
 func (a *HCLogAdapter) Debug(msg string, args ...interface{}) {
-	a.CreateEntry(args).Debug().Msg(msg)
+	a.CreateEntry(args)
+	a.Logger.Debug().Msg(msg)
 }
 
 // Info logging level message
 func (a *HCLogAdapter) Info(msg string, args ...interface{}) {
-	a.CreateEntry(args).Info(msg)
+	a.CreateEntry(args)
+	a.Logger.Info().Msg(msg)
 }
 
 // Warn logging level message
 func (a *HCLogAdapter) Warn(msg string, args ...interface{}) {
-	a.CreateEntry(args).Warn(msg)
+	a.CreateEntry(args)
+	a.Logger.Warn().Msg(msg)
 }
 
 // Error logging level message
 func (a *HCLogAdapter) Error(msg string, args ...interface{}) {
-	a.CreateEntry(args).Error(msg)
+	a.CreateEntry(args)
+	a.Logger.Error().Msg(msg)
 }
 
 // IsTrace check
@@ -51,22 +54,22 @@ func (a *HCLogAdapter) IsTrace() bool {
 
 // IsDebug check
 func (a *HCLogAdapter) IsDebug() bool {
-	return a.shouldEmit(logrus.DebugLevel)
+	return a.shouldEmit(zerolog.DebugLevel)
 }
 
 // IsInfo check
 func (a *HCLogAdapter) IsInfo() bool {
-	return a.shouldEmit(logrus.InfoLevel)
+	return a.shouldEmit(zerolog.InfoLevel)
 }
 
 // IsWarn check
 func (a *HCLogAdapter) IsWarn() bool {
-	return a.shouldEmit(logrus.WarnLevel)
+	return a.shouldEmit(zerolog.WarnLevel)
 }
 
 // IsError check
 func (a *HCLogAdapter) IsError() bool {
-	return a.shouldEmit(logrus.ErrorLevel)
+	return a.shouldEmit(zerolog.ErrorLevel)
 }
 
 // SetLevel noop
@@ -78,7 +81,7 @@ func (a *HCLogAdapter) SetLevel(hclog.Level) {
 
 // GetLevel noop
 func (a *HCLogAdapter) GetLevel() hclog.Level {
-	return hclog.Level(logrus.ErrorLevel)
+	return hclog.Level(zerolog.ErrorLevel)
 }
 
 // With returns a new instance with the specified options
@@ -116,23 +119,23 @@ func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writ
 	return nil
 }
 
-// StandardLogger is meant to return a stldib Logger type which wraps around
+// StandardLogger is meant to return a stdlib Logger type which wraps around
 // hclog. It does this by providing an io.Writer and instantiating a new
 // Logger. It then tries to interpret the log level by parsing the message.
 //
 // Since we are not using `hclog` in a generic way, and I cannot find any
 // calls to this method from go-plugin, we will poorly support this method.
-// Rather than pull in all of hclog writer parsing logic, pass it a Logrus
+// Rather than pull in all of hclog writer parsing logic, pass it a zerolog
 // writer, and hardcode the level to INFO.
 //
 // Apologies to those who find themselves here.
 func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *golog.Logger {
-	entry := a.Logger.WithFields(logrus.Fields{})
-	return golog.New(entry.WriterLevel(logrus.InfoLevel), "", 0)
+
+	return golog.New(a.Logger.Level(zerolog.InfoLevel), "", 0)
 }
 
-func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
-	currentLevel := a.Logger.WithFields(logrus.Fields{}).Level
+func (a *HCLogAdapter) shouldEmit(level zerolog.Level) bool {
+	currentLevel := a.Logger.GetLevel()
 	return currentLevel >= level
 }
 
@@ -142,18 +145,15 @@ func (a *HCLogAdapter) CreateEntry(args []interface{}) zerolog.Logger {
 		args = append(args, "<unknown>")
 	}
 
-	fields := make(logrus.Fields)
+	fields := make(map[string]any)
 	for i := 0; i < len(args); i = i + 2 {
 		k := args[i].(string)
 		v := args[i+1]
 		fields[k] = v
 	}
 
-	// return a.Logger.WithFields(fields)
-	ctx := a.Logger.With()
-	for k, v := range fields {
-		ctx = ctx.Interface(k, v)
-	}
+	ctx := a.Logger.With().Fields(fields)
+
 	return ctx.Logger()
 }
 

@@ -3,12 +3,13 @@ package main
 import (
 	"testing"
 
-	dktypes "github.com/sine-io/sinx/types"
 	"github.com/stretchr/testify/assert"
+
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 func TestPublishExecute(t *testing.T) {
-	pa := &dktypes.ExecuteRequest{
+	pa := &sxproto.ExecuteRequest{
 		JobName: "testJob",
 		Config: map[string]string{
 			"queue": "test",
@@ -26,20 +27,20 @@ func TestPublishExecute(t *testing.T) {
 func TestPublishExecute_V2(t *testing.T) {
 	tests := []struct {
 		name        string
-		args        *dktypes.ExecuteRequest
+		args        *sxproto.ExecuteRequest
 		expectedErr string
 	}{
 
 		{
 			name: "No url provided",
-			args: &dktypes.ExecuteRequest{
+			args: &sxproto.ExecuteRequest{
 				Config: map[string]string{},
 			},
 			expectedErr: "RabbitMQ url is empty",
 		},
 		{
 			name: "No queue provided",
-			args: &dktypes.ExecuteRequest{
+			args: &sxproto.ExecuteRequest{
 				Config: map[string]string{
 					"url": "amqp://guest:guest@localhost:5672",
 				},
@@ -48,7 +49,7 @@ func TestPublishExecute_V2(t *testing.T) {
 		},
 		{
 			name: "Body and base64Body provided",
-			args: &dktypes.ExecuteRequest{
+			args: &sxproto.ExecuteRequest{
 				Config: map[string]string{
 					"url":                "amqp://guest:guest@localhost:5672",
 					"queue.name":         "test",
@@ -60,7 +61,7 @@ func TestPublishExecute_V2(t *testing.T) {
 		},
 		{
 			name: "All good",
-			args: &dktypes.ExecuteRequest{
+			args: &sxproto.ExecuteRequest{
 				Config: map[string]string{
 					"url":          "amqp://guest:guest@localhost:5672",
 					"message.body": "{\"key\":\"value\"}",

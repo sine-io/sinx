@@ -6,8 +6,10 @@ import (
 	"github.com/ryanuber/columnize"
 	"github.com/spf13/cobra"
 
+	zlog "github.com/rs/zerolog/log"
+
+	sxagent "github.com/sine-io/sinx/internal/agent"
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxrpc "github.com/sine-io/sinx/internal/rpc"
 )
 
 func init() {
@@ -41,7 +43,7 @@ var raftListCmd = &cobra.Command{
 	Short: "Command to list raft peers",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gc := sxrpc.NewGRPCClient(nil, nil, logger)
+		gc := sxagent.NewGRPCClient(nil, nil, zlog.Logger)
 
 		reply, err := gc.RaftGetConfiguration(ip)
 		if err != nil {
@@ -72,12 +74,12 @@ var raftRemovePeerCmd = &cobra.Command{
 	Short: "Command to remove a peer from raft",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gc := sxrpc.NewGRPCClient(nil, nil, logger)
+		gc := sxagent.NewGRPCClient(nil, nil, zlog.Logger)
 
 		if err := gc.RaftRemovePeerByID(ip, peerID); err != nil {
 			return err
 		}
-		logger.Info().Msg("Peer removed")
+		zlog.Info().Msg("Peer removed")
 
 		return nil
 	},

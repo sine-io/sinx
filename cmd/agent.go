@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -60,7 +61,7 @@ func agentRun(args ...string) error {
 	// sine, 2025.5.30
 	// This log statement helps avoid compiler warnings about unused parameters
 	// as 'args' is not used elsewhere in the function
-	logger.Debug().Msgf("agentRun called with args: %v", args)
+	zlog.Debug().Msgf("agentRun called with args: %v", args)
 
 	// Make sure we clean up any managed plugins at the end of this
 	p := &sxplugin.Plugins{
@@ -68,7 +69,7 @@ func agentRun(args ...string) error {
 		NodeName: cfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {
-		logger.Fatal().Err(err).Send()
+		zlog.Fatal().Err(err).Send()
 	}
 	plugins := sxagent.Plugins{
 		Processors: p.Processors,
@@ -76,6 +77,9 @@ func agentRun(args ...string) error {
 	}
 
 	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
+	// set agent logger
+	agent.SetLogger(zlog.Logger) // TODO: sine, needed?
+
 	if err := agent.Start(); err != nil {
 		return err
 	}
@@ -100,12 +104,12 @@ WAIT:
 	case s := <-signalCh:
 		sig = s
 	case err := <-agent.RetryJoinCh():
-		logger.Error().Err(err).Msg("agent: Retry join failed")
+		zlog.Error().Err(err).Msg("agent: Retry join failed")
 		return 1
 	case <-ShutdownCh:
 		sig = os.Interrupt
 	}
-	logger.Info().Msgf("Caught signal: %v", sig)
+	zlog.Info().Msgf("Caught signal: %v", sig)
 
 	// Check if this is a SIGHUP
 	if sig == syscall.SIGHUP {
@@ -119,10 +123,10 @@ WAIT:
 	}
 
 	// Attempt a graceful leave
-	logger.Info().Msg("agent: Gracefully shutting down agent...")
+	zlog.Info().Msg("agent: Gracefully shutting down agent...")
 	go func() {
 		if err := agent.Stop(); err != nil {
-			logger.Error().Err(err).Msg("unable to stop agent")
+			zlog.Error().Err(err).Msg("unable to stop agent")
 			return
 		}
 	}()
@@ -130,9 +134,9 @@ WAIT:
 	gracefulCh := make(chan struct{})
 
 	for {
-		logger.Info().Msg("Waiting for jobs to finish...")
+		zlog.Info().Msg("Waiting for jobs to finish...")
 		if agent.GetRunningJobs() < 1 {
-			logger.Info().Msg("No jobs left. Exiting.")
+			zlog.Info().Msg("No jobs left. Exiting.")
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -155,7 +159,7 @@ WAIT:
 
 // handleReload is invoked when we should reload our configs, e.g. SIGHUP
 func handleReload() {
-	logger.Info().Msg("Reloading configuration...")
+	zlog.Info().Msg("Reloading configuration...")
 	initConfig()
 	//Config reloading will also reload Notification settings
 	agent.UpdateTags(cfg.Tags)

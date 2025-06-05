@@ -1,10 +1,11 @@
 package cmd
 
 import (
+	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	sxagent "github.com/sine-io/sinx/internal/agent"
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxrpc "github.com/sine-io/sinx/internal/rpc"
 )
 
 func init() {
@@ -29,14 +30,13 @@ var leaveCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var gc sxrpc.DkronGRPCClient
-		gc = sxrpc.NewGRPCClient(nil, nil, logger)
+		gc := sxagent.NewGRPCClient(nil, nil, zlog.Logger) // TODO: log parameter needed?
 
 		if err := gc.Leave(ip); err != nil {
 			return err
 		}
 
-		logger.Info().Msg("Left the cluster successfully")
+		zlog.Info().Msg("Left the cluster successfully")
 		return nil
 	},
 }

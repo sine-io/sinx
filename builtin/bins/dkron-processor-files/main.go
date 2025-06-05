@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/sine-io/sinx/plugin"
+	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 func main() {
-	plugin.Serve(&plugin.ServeOpts{
+	sxplugin.Serve(&sxplugin.ServeOpts{
 		Processor: new(FilesOutput),
 	})
 }

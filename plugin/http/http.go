@@ -17,8 +17,9 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
-	dkplugin "github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/types"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -35,7 +36,7 @@ type HTTP struct {
 	clientPool map[string]http.Client
 }
 
-// New
+// New creates a new HTTP plugin instance
 func New() *HTTP {
 	return &HTTP{
 		clientPool: make(map[string]http.Client),
@@ -55,9 +56,9 @@ func New() *HTTP {
 //	    "expectBody": "",            // Expect response body, support regexp, such as /success/
 //	    "debug": "true"              // Debug option, will log everything when this option is not empty
 //	}
-func (s *HTTP) Execute(args *types.ExecuteRequest, cb dkplugin.StatusHelper) (*types.ExecuteResponse, error) {
+func (s *HTTP) Execute(args *sxproto.ExecuteRequest, cb sxplugin.StatusHelper) (*sxproto.ExecuteResponse, error) {
 	out, err := s.ExecuteImpl(args)
-	resp := &types.ExecuteResponse{Output: out}
+	resp := &sxproto.ExecuteResponse{Output: out}
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -65,7 +66,7 @@ func (s *HTTP) Execute(args *types.ExecuteRequest, cb dkplugin.StatusHelper) (*t
 }
 
 // ExecuteImpl do http request
-func (s *HTTP) ExecuteImpl(args *types.ExecuteRequest) ([]byte, error) {
+func (s *HTTP) ExecuteImpl(args *sxproto.ExecuteRequest) ([]byte, error) {
 	output, _ := circbuf.NewBuffer(maxBufSize)
 	var debug bool
 	if args.Config["debug"] != "" {

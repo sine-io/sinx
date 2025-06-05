@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
-	dkplugin "github.com/sine-io/sinx/plugin"
-	dktypes "github.com/sine-io/sinx/types"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
@@ -37,9 +38,9 @@ type S3 struct{}
 //	    "secret_key": "SECRET_KEY",           // AWS secret access key
 //	    "endpoint": "https://custom-s3.com",  // Custom S3 endpoint (optional)
 //	}
-func (s *S3) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) (*dktypes.ExecuteResponse, error) {
+func (s *S3) Execute(args *sxproto.ExecuteRequest, cb sxplugin.StatusHelper) (*sxproto.ExecuteResponse, error) {
 	out, err := s.ExecuteImpl(args)
-	resp := &dktypes.ExecuteResponse{Output: out}
+	resp := &sxproto.ExecuteResponse{Output: out}
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -47,7 +48,7 @@ func (s *S3) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) (*d
 }
 
 // ExecuteImpl uploads a file to Amazon S3
-func (s *S3) ExecuteImpl(args *dktypes.ExecuteRequest) ([]byte, error) {
+func (s *S3) ExecuteImpl(args *sxproto.ExecuteRequest) ([]byte, error) {
 	output, _ := circbuf.NewBuffer(maxBufSize)
 
 	// Parse config

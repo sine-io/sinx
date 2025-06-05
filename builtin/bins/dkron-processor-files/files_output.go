@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/sine-io/sinx/plugin"
-	"github.com/sine-io/sinx/types"
-	log "github.com/sirupsen/logrus"
+	zlog "github.com/rs/zerolog/log"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 const defaultLogDir = "/var/log/dkron"
@@ -20,15 +21,14 @@ type FilesOutput struct {
 }
 
 // Process method writes the execution output to a file
-func (l *FilesOutput) Process(args *plugin.ProcessorArgs) types.Execution {
-	log.SetFormatter(&log.TextFormatter{FullTimestamp: true})
+func (l *FilesOutput) Process(args *sxplugin.ProcessorArgs) sxproto.Execution {
 	l.parseConfig(args.Config)
 
 	out := args.Execution.Output
 
 	// Ensure our path exists
 	if err := os.MkdirAll(l.logDir, 0o755); err != nil && !os.IsExist(err) {
-		log.Errorf("logDir path not accessible: %v", err)
+		zlog.Error().Msgf("logDir path not accessible: %v", err)
 	}
 	// logFilepath := fmt.Sprintf("%s/%s.log", l.logDir, args.Execution.Key())
 	// sine. 2025.5.30
@@ -37,9 +37,9 @@ func (l *FilesOutput) Process(args *plugin.ProcessorArgs) types.Execution {
 	// and to avoid issues with different OS path formats.
 	logFilepath := filepath.Join(l.logDir, args.Execution.Key()+".log")
 
-	log.WithField("file", logFilepath).Info("files: Writing file")
+	zlog.Info().Str("file", logFilepath).Msg("files: Writing file")
 	if err := os.WriteFile(logFilepath, out, 0644); err != nil {
-		log.WithError(err).Error("Error writing log file")
+		zlog.Error().Err(err).Msg("Error writing log file")
 	}
 
 	if !l.forward {
@@ -49,23 +49,23 @@ func (l *FilesOutput) Process(args *plugin.ProcessorArgs) types.Execution {
 	return args.Execution
 }
 
-func (l *FilesOutput) parseConfig(config plugin.Config) {
+func (l *FilesOutput) parseConfig(config sxplugin.Config) {
 	forward, err := strconv.ParseBool(config["forward"])
 	if err != nil {
 		l.forward = false
-		log.WithField("param", "forward").Warning("Incorrect format or param not found.")
+		zlog.Warn().Str("param", "forward").Msg("Incorrect format or param not found.")
 	} else {
 		l.forward = forward
-		log.Infof("Forwarding set to: %t", forward)
+		zlog.Info().Msgf("Forwarding set to: %t", forward)
 	}
 
 	logDir := config["log_dir"]
 	if logDir != "" {
 		l.logDir = logDir
-		log.Infof("Log dir set to: %s", logDir)
+		zlog.Info().Msgf("Log dir set to: %s", logDir)
 	} else {
 		l.logDir = defaultLogDir
-		log.WithField("param", "log_dir").Warning("Incorrect format or param not found.")
+		zlog.Warn().Str("param", "log_dir").Msg("Incorrect format or param not found.")
 		if _, err := os.Stat(defaultLogDir); os.IsNotExist(err) {
 			os.MkdirAll(defaultLogDir, os.ModePerm)
 		}

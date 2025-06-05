@@ -5,10 +5,11 @@ import (
 	"errors"
 	"strconv"
 
-	dkplugin "github.com/sine-io/sinx/plugin"
-	dktypes "github.com/sine-io/sinx/types"
-	log "github.com/sirupsen/logrus"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/streadway/amqp"
+
+	sxplugin "github.com/sine-io/sinx/plugin"
+	sxproto "github.com/sine-io/sinx/types"
 )
 
 // RabbitMQ process publish rabbitmq message when Execute method is called.
@@ -30,9 +31,9 @@ type RabbitMQ struct{}
 //			"message.body": "{\"key\":\"value\"}"
 //			"message.base64Body": "base64encodedBody"
 //	}
-func (r *RabbitMQ) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) (*dktypes.ExecuteResponse, error) {
+func (r *RabbitMQ) Execute(args *sxproto.ExecuteRequest, cb sxplugin.StatusHelper) (*sxproto.ExecuteResponse, error) {
 	out, err := r.ExecuteImpl(args, cb)
-	resp := &dktypes.ExecuteResponse{Output: out}
+	resp := &sxproto.ExecuteResponse{Output: out}
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -40,7 +41,7 @@ func (r *RabbitMQ) Execute(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelpe
 }
 
 // ExecuteImpl do rabbitmq publish
-func (r *RabbitMQ) ExecuteImpl(args *dktypes.ExecuteRequest, cb dkplugin.StatusHelper) ([]byte, error) {
+func (r *RabbitMQ) ExecuteImpl(args *sxproto.ExecuteRequest, cb sxplugin.StatusHelper) ([]byte, error) {
 	// validate config
 	cfg := args.Config
 	if cfg == nil {
@@ -69,7 +70,7 @@ func (r *RabbitMQ) ExecuteImpl(args *dktypes.ExecuteRequest, cb dkplugin.StatusH
 	defer func(conn *amqp.Connection) {
 		err := conn.Close()
 		if err != nil {
-			log.Error("Failed to close amqp connection", log.WithError(err))
+			zlog.Error().Err(err).Msg("Failed to close amqp connection")
 		}
 	}(conn)
 
@@ -80,7 +81,7 @@ func (r *RabbitMQ) ExecuteImpl(args *dktypes.ExecuteRequest, cb dkplugin.StatusH
 	defer func(ch *amqp.Channel) {
 		err := ch.Close()
 		if err != nil {
-			log.Error("Failed to close channel", log.WithError(err))
+			zlog.Error().Err(err).Msg("Failed to close channel")
 		}
 	}(ch)
 
