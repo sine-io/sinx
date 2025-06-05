@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"fmt"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	sxflagset "github.com/sine-io/sinx/cmd/flagset"
 	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
@@ -23,17 +23,14 @@ var (
 
 	rpcAddr string
 	ip      string
-
-	initErrors []error
 )
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	// Initialize the logger
+	cobra.OnInitialize(initLogger)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	// add log flags to root command.
-	rootCmd.Flags().AddFlagSet(sxflagset.LogFlagSet(cfg))
-	_ = viper.BindPFlags(rootCmd.Flags())
+	rootCmd.PersistentFlags().StringVar(&cfg.LogLevel, "log-level", "info", "log level (debug, info, warn, error, fatal, panic)")
 
 	// cobra.OnFinalize()
 }
@@ -71,12 +68,12 @@ func initConfig() {
 	viper.AutomaticEnv() // read in environment variables that match
 
 	err := viper.ReadInConfig() // Find and read the config file
-	if err != nil {             // Handle errors reading the config file
-		initErrors = append(initErrors, fmt.Errorf("no valid config found: Applying default values. Error: %s", err))
+	if err != nil {
+		zlog.Info().Err(err).Msg("No valid config found: Applying default values.")
 	}
 
 	if err := viper.Unmarshal(cfg); err != nil {
-		initErrors = append(initErrors, fmt.Errorf("error unmarshalling config. Error: %s", err))
+		zlog.Error().Err(err).Msg("Error unmarshalling config")
 	}
 
 	cliTags := viper.GetStringSlice("tag")
@@ -85,38 +82,19 @@ func initConfig() {
 	if len(cliTags) > 0 {
 		tags, err = UnmarshalTags(cliTags)
 		if err != nil {
-			initErrors = append(initErrors, fmt.Errorf("error unmarshalling cli tags. Error: %s", err))
+			zlog.Error().Err(err).Msg("Error unmarshalling cli tags")
 		}
 	} else {
 		tags = viper.GetStringMapString("tags")
 	}
 	cfg.Tags = tags
-
-	initLogger()
 }
 
 // initLogger init zerolog.Logger
 func initLogger() {
-
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 
-	logLevel, err := zerolog.ParseLevel(cfg.LogLevel)
-
-	if err != nil {
-		// If the log level is invalid, default to INFO
-		logLevel = zerolog.InfoLevel
-
-		initErrors = append(initErrors, fmt.Errorf("invalid log level '%s', defaulting to INFO: %w", logLevel, err))
-	}
-
-	// 1. Set the global log level
-	// zerolog's default level is Debug
-	if logLevel != zerolog.DebugLevel {
-		zerolog.SetGlobalLevel(logLevel)
-	}
-
-	// 2. Set the output format
 	fileLogger := &lumberjack.Logger{
 		Filename:   "logs/app.log",
 		MaxSize:    5, //
@@ -126,22 +104,32 @@ func initLogger() {
 	}
 	writers := zerolog.MultiLevelWriter(zerolog.NewConsoleWriter(), fileLogger)
 
-	// 3. Customize the global logger (the one used by package level methods).
+	// Customize the global logger (the one used by package level methods).
+	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+		return filepath.Base(file) + ":" + strconv.Itoa(line)
+	}
 	zlog.Logger = zerolog.New(writers).
 		With().
 		Str("node", cfg.NodeName). // Add node information to the logger
 		Timestamp().
 		Caller(). // Add file and line number to log
 		Logger()
+}
 
-	// 4. log the init errors
-	for _, err := range initErrors {
-		zlog.Error().Err(err).Msg("Logger initialization error")
+func setupLogLevel() {
+	logLevel, err := zerolog.ParseLevel(cfg.LogLevel)
+
+	if err != nil {
+		// If the log level is invalid, default to INFO
+		zlog.Info().Err(err).Msgf("invalid log level '%s', defaulting to INFO", logLevel)
+
+		logLevel = zerolog.InfoLevel
 	}
-	initErrors = nil // Clear errors after logging them
 
-	// 5. add hooks
-	zlog.Hook(&LogSplitter{})
+	// zerolog's default level is Debug
+	if logLevel != zerolog.DebugLevel {
+		zerolog.SetGlobalLevel(logLevel)
+	}
 }
 
 // LogSplitter is a zerolog hook that splits logs based on their level.

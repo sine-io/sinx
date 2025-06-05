@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/kardianos/osext"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
 	zlog "github.com/rs/zerolog/log"
@@ -56,7 +55,7 @@ func (p *Plugins) DiscoverPlugins() error {
 	// /usr/local/bin. If found, this replaces what we found in the config path.
 	exePath, err := osext.Executable()
 	if err != nil {
-		logrus.WithError(err).Error("Error loading exe directory")
+		zlog.Error().Err(err).Msg("Error loading exe directory")
 	} else {
 		p, err := plugin.Discover("dkron-processor-*", filepath.Dir(exePath))
 		if err != nil {

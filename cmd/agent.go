@@ -31,8 +31,9 @@ const (
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().AddFlagSet(sxflagset.NetworkFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.NodeFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.NetworkFlagSet(cfg))
+	agentCmd.Flags().AddFlagSet(sxflagset.LogFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.ClusterFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.StorageFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.NotificationFlagSet(cfg))
@@ -47,6 +48,9 @@ var agentCmd = &cobra.Command{
 	Short: "Start a dkron agent",
 	Long: `Start a dkron agent that schedules jobs, listens for executions and runs executors.
 It also runs a web UI.`,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		initConfig()
+	},
 	// Run will execute the main functions of the agent command.
 	// This includes the main eventloop and starting the server if enabled.
 	//
@@ -69,7 +73,8 @@ func agentRun(args ...string) error {
 		NodeName: cfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {
-		zlog.Fatal().Err(err).Send()
+		// zlog.Fatal().Err(err).Send()
+		zlog.Fatal().Msgf("Failed to discover plugins: %v", err)
 	}
 	plugins := sxagent.Plugins{
 		Processors: p.Processors,
