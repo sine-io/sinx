@@ -11,10 +11,10 @@ import (
 	sxproto "github.com/sine-io/sinx/types"
 )
 
-const defaultLogDir = "/var/log/dkron"
+const defaultLogDir = "/var/log/sinx"
 
 // FilesOutput plugin that saves each execution log
-// in it's own file in the file system.
+// in its own file in the file system.
 type FilesOutput struct {
 	forward bool
 	logDir  string

@@ -10,10 +10,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/expvar"
+	glogger "github.com/gin-contrib/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/tidwall/buntdb"
 	status "google.golang.org/grpc/status"
 
@@ -38,8 +40,8 @@ type HTTPTransport struct {
 	logger zerolog.Logger
 }
 
-// NewTransport creates an HTTPTransport with a bound agent.
-func NewTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
+// NewHTTPTransport creates an HTTPTransport with a bound agent.
+func NewHTTPTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
 	return &HTTPTransport{
 		agent:  a,
 		logger: log,
@@ -47,6 +49,14 @@ func NewTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
 }
 
 func (h *HTTPTransport) ServeHTTP() {
+	if h.agent.config.LogLevel == zerolog.DebugLevel.String() {
+		gin.DefaultWriter = zlog.Logger
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.DefaultWriter = io.Discard
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	h.Engine = gin.Default()
 
 	rootPath := h.Engine.Group("/")
@@ -59,6 +69,11 @@ func (h *HTTPTransport) ServeHTTP() {
 
 	rootPath.Use(cors.New(config))
 	rootPath.Use(h.MetaMiddleware())
+	rootPath.Use(glogger.SetLogger(
+		glogger.WithLogger(func(c *gin.Context, _ zerolog.Logger) zerolog.Logger {
+			return zlog.Logger
+		}),
+	))
 
 	h.APIRoutes(rootPath)
 	if h.agent.config.UI {

@@ -35,5 +35,9 @@ map to datacenters such as us-west and us-east`)
 	cmdFlags.String("profile", cfg.Profile,
 		"Profile is used to control the timing profiles used")
 
+	cmdFlags.String("data-dir", cfg.DataDir,
+		`Specifies the directory to use for server-specific data, including the replicated log. 
+		By default, this is the top-level data-dir, like [/var/lib/sinx]`)
+
 	return cmdFlags
 }

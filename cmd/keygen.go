@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +30,7 @@ var keygenCmd = &cobra.Command{
 			return errors.New("couldn't read enough entropy. Generate more entropy")
 		}
 
-		zlog.Info().Msg(base64.StdEncoding.EncodeToString(key))
+		fmt.Printf("Encryption key: %s", base64.StdEncoding.EncodeToString(key))
 
 		return nil
 	},

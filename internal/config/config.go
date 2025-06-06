@@ -27,7 +27,6 @@ type Config struct {
 
 	// DevMode is used for development purposes only and limits the
 	// use of persistence or state.
-	// TODO: what does this mean?
 	DevMode bool
 
 	// Profile is used to select a timing profile for Serf. The supported choices

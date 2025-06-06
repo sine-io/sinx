@@ -12,6 +12,8 @@ import (
 	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
+var peerID string
+
 func init() {
 	raftCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent.")
 	raftRemovePeerCmd.Flags().StringVar(&peerID, "peer-id", "", "Remove a Dkron server with the given ID from the Raft configuration.")
@@ -66,8 +68,6 @@ var raftListCmd = &cobra.Command{
 		return nil
 	},
 }
-
-var peerID string
 
 var raftRemovePeerCmd = &cobra.Command{
 	Use:   "remove-peer",

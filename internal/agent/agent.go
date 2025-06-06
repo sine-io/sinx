@@ -61,7 +61,7 @@ type RaftStore interface {
 // Node is a shorter, more descriptive name for serf.Member
 type Node = serf.Member
 
-// Agent is the main struct that represents a dkron agent
+// Agent is the main struct that represents a SinX agent
 type Agent struct {
 	// ProcessorPlugins maps processor plugins
 	ProcessorPlugins map[string]sxplugin.Processor
@@ -97,12 +97,12 @@ type Agent struct {
 	shutdownCh  chan struct{}
 	retryJoinCh chan error
 
-	// The raft instance is used among Dkron nodes within the
+	// The raft instance is used among SinX nodes within the
 	// region to protect operations that require strong consistency
 	leaderCh <-chan bool
 	raft     *raft.Raft
 	// raftLayer provides network layering of the raft RPC along with
-	// the Dkron gRPC transport layer.
+	// the SinX gRPC transport layer.
 	raftLayer     *RaftLayer
 	raftStore     RaftStore
 	raftInmem     *raft.InmemStore
@@ -113,7 +113,7 @@ type Agent struct {
 	// join/leave from the region.
 	reconcileCh chan serf.Member
 
-	// peers is used to track the known Dkron servers. This is
+	// peers is used to track the known SinX servers. This is
 	// used for region forwarding and clustering.
 	peers        map[string][]*ServerParts
 	localPeers   map[raft.ServerAddress]*ServerParts
@@ -138,12 +138,9 @@ type Plugins struct {
 	Executors  map[string]sxplugin.Executor
 }
 
-// AgentOption type that defines agent options
-type AgentOption func(agent *Agent)
-
 // NewAgent returns a new Agent instance capable of starting
-// and running a Dkron instance.
-func NewAgent(config *sxconfig.Config, options ...AgentOption) *Agent {
+// and running a SinX instance.
+func NewAgent(config *sxconfig.Config, options ...Options) *Agent {
 	agent := &Agent{
 		config:       config,
 		retryJoinCh:  make(chan error),
@@ -183,7 +180,7 @@ func (a *Agent) RetryJoinCh() <-chan error {
 	return a.retryJoinCh
 }
 
-// JoinLAN is used to have Dkron join the inner-DC pool
+// JoinLAN is used to have SinX join the inner-DC pool
 // The target address should be another node inside the DC
 // listening on the Serf LAN address
 func (a *Agent) JoinLAN(addrs []string) (int, error) {
@@ -412,7 +409,7 @@ func (a *Agent) setupRaft() error {
 			}
 			store, err := NewStore(a.logger)
 			if err != nil {
-				a.logger.Fatal().Err(err).Msg("dkron: Error initializing store")
+				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 			}
 			tmpFsm := newFSM(store, nil, a.logger)
 			if err := raft.RecoverCluster(raftCfg, tmpFsm,
@@ -492,7 +489,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.Init()
 
 	serfConfig.Tags = a.config.Tags
-	serfConfig.Tags["role"] = "dkron"
+	serfConfig.Tags["role"] = "sinx"
 	serfConfig.Tags["dc"] = a.config.Datacenter
 	serfConfig.Tags["region"] = a.config.Region
 	serfConfig.Tags["version"] = Version
@@ -539,7 +536,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.EventCh = a.eventCh
 
 	// Start Serf
-	a.logger.Info().Msg("agent: Dkron agent starting")
+	a.logger.Info().Msg("agent: SinX agent starting")
 
 	if a.logger.GetLevel() == zerolog.DebugLevel {
 		// TODO: set serf log output from os.Stderr to zerolog's output
@@ -559,12 +556,12 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	return serf, nil
 }
 
-// StartServer launch a new dkron server process
+// StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
 	if a.Store == nil {
 		s, err := NewStore(a.logger)
 		if err != nil {
-			a.logger.Fatal().Err(err).Msg("dkron: Error initializing store")
+			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 		}
 		a.Store = s
 	}
@@ -572,7 +569,7 @@ func (a *Agent) StartServer() {
 	a.sched = NewScheduler(a.logger)
 
 	if a.HTTPTransport == nil {
-		a.HTTPTransport = NewTransport(a, a.logger)
+		a.HTTPTransport = NewHTTPTransport(a, a.logger)
 	}
 	a.HTTPTransport.ServeHTTP()
 
@@ -933,7 +930,7 @@ func (a *Agent) startReporter() {
 
 	clusterID, err := a.config.Hash()
 	if err != nil {
-		a.logger.Warn().Msgf("agent: unable to hash the service configuration:", err.Error())
+		a.logger.Warn().Msgf("agent: unable to hash the service configuration: %s", err.Error())
 		return
 	}
 
@@ -947,7 +944,7 @@ func (a *Agent) startReporter() {
 			URL:       "https://stats.xxxxxxx.io",
 			Version:   fmt.Sprintf("%s %s", Name, Version),
 		}); err != nil {
-			a.logger.Warn().Msgf("agent: unable to create the usage report client:", err.Error())
+			a.logger.Warn().Msgf("agent: unable to create the usage report client: %s", err.Error())
 		}
 	}()
 }

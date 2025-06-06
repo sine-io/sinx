@@ -10,11 +10,6 @@ import (
 func StorageFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("storage flagset", flag.ContinueOnError)
 
-	cmdFlags.String("data-dir", cfg.DataDir,
-		`Specifies the directory to use for server-specific data, including the 
-replicated log. By default, this is the top-level data-dir, 
-like [/var/lib/dkron]`)
-
 	cmdFlags.Int("raft-multiplier", cfg.RaftMultiplier,
 		`An integer multiplier used by servers to scale key Raft timing parameters.
 Omitting this value or setting it to 0 uses default timing described below. 

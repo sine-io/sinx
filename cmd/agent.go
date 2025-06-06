@@ -19,6 +19,8 @@ import (
 )
 
 var (
+	cfgFile string
+
 	ShutdownCh chan (struct{})
 	agent      *sxagent.Agent
 )
@@ -30,10 +32,10 @@ const (
 
 func init() {
 	rootCmd.AddCommand(agentCmd)
+	agentCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path")
 
 	agentCmd.Flags().AddFlagSet(sxflagset.NodeFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.NetworkFlagSet(cfg))
-	agentCmd.Flags().AddFlagSet(sxflagset.LogFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.ClusterFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.StorageFlagSet(cfg))
 	agentCmd.Flags().AddFlagSet(sxflagset.NotificationFlagSet(cfg))
@@ -45,20 +47,67 @@ func init() {
 // agentCmd represents the agent command
 var agentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "Start a dkron agent",
-	Long: `Start a dkron agent that schedules jobs, listens for executions and runs executors.
+	Short: "Start a sinx agent",
+	Long: `Start a sinx agent that schedules jobs, listens for executions and runs executors.
 It also runs a web UI.`,
-	PreRun: func(cmd *cobra.Command, args []string) {
-		initConfig()
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return initConfig()
 	},
 	// Run will execute the main functions of the agent command.
 	// This includes the main eventloop and starting the server if enabled.
 	//
 	// The returned value is the exit code.
-	// protoc -I proto/ proto/executor.proto --go_out=plugins=grpc:dkron/
+	// protoc -I proto/ proto/executor.proto --go_out=plugins=grpc:sinx/
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return agentRun(args...)
 	},
+}
+
+// initConfig reads in config file and ENV variables if set.
+func initConfig() error {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.SetConfigName("sinx")        // name of config file (without extension)
+		viper.AddConfigPath("/etc/sinx")   // call multiple times to add many search paths
+		viper.AddConfigPath("$HOME/.sinx") // call multiple times to add many search paths
+		viper.AddConfigPath("./config")    // call multiple times to add many search paths
+	}
+
+	viper.SetEnvPrefix("sinx")
+	replacer := strings.NewReplacer("-", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv() // read in environment variables that match
+
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil {
+		return fmt.Errorf("config: Error reading config file: %s", err.Error())
+	} else {
+		if rootCmd.Flags().Changed("log-level") {
+			// If the log level is set via CLI, override the config value
+			viper.Set("log-level", logLevel)
+		}
+	}
+
+	if err := viper.Unmarshal(cfg); err != nil {
+		return fmt.Errorf("config: Error unmarshalling config: %s", err.Error())
+	}
+
+	cliTags := viper.GetStringSlice("tag")
+	var tags map[string]string
+
+	if len(cliTags) > 0 {
+		tags, err = UnmarshalTags(cliTags)
+		if err != nil {
+			return fmt.Errorf("config: Error unmarshalling cli tags: %s", err.Error())
+		}
+	} else {
+		tags = viper.GetStringMapString("tags")
+	}
+	cfg.Tags = tags
+
+	return nil
 }
 
 func agentRun(args ...string) error {
@@ -73,8 +122,7 @@ func agentRun(args ...string) error {
 		NodeName: cfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {
-		// zlog.Fatal().Err(err).Send()
-		zlog.Fatal().Msgf("Failed to discover plugins: %v", err)
+		zlog.Fatal().Err(err).Send()
 	}
 	plugins := sxagent.Plugins{
 		Processors: p.Processors,
@@ -83,7 +131,7 @@ func agentRun(args ...string) error {
 
 	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
 	// set agent logger
-	agent.SetLogger(zlog.Logger) // TODO: sine, needed?
+	agent.SetLogger(zlog.Logger)
 
 	if err := agent.Start(); err != nil {
 		return err

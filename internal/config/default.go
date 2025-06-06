@@ -9,6 +9,7 @@ import (
 
 // DefaultBindPort is the default port that dkron will use for Serf communication
 const (
+	DefaultDataDir       string        = "sinx.data"
 	DefaultBindPort      int           = 8946
 	DefaultRPCPort       int           = 6868
 	DefaultRetryInterval time.Duration = time.Second * 30
@@ -41,14 +42,15 @@ func DefaultConfig() *Config {
 		SerfReconnectTimeout: "24h",
 
 		// ------ configuration for storage ------
-		DataDir:           "sinx.data",
 		ReconcileInterval: 60 * time.Second,
 		RaftMultiplier:    1,
+		DataDir:           DefaultDataDir,
 
 		// ------ configuration for cluster ------
 		RetryJoinIntervalLAN: DefaultRetryInterval,
 
 		// ------ configuration for observability ------
 		MailSubjectPrefix: "[SinX]",
+		DisableUsageStats: true,
 	}
 }

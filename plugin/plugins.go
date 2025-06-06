@@ -13,7 +13,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-var embededPlugins = []string{"shell", "http"}
+var embedPlugins = []string{"shell", "http"}
 
 type Plugins struct {
 	Processors map[string]Processor
@@ -26,44 +26,44 @@ type Plugins struct {
 //
 // We look in the following places for plugins:
 //
-// 1. Dkron configuration path
-// 2. Path where Dkron is installed
+// 1. SinX configuration path
+// 2. Path where SinX is installed
 //
 // Whichever file is discoverd LAST wins.
 func (p *Plugins) DiscoverPlugins() error {
 	p.Processors = make(map[string]Processor)
 	p.Executors = make(map[string]Executor)
 
-	pluginDir := filepath.Join("/etc", "dkron", "plugins")
+	pluginDir := filepath.Join("/etc", "sinx", "plugins")
 	if viper.ConfigFileUsed() != "" {
 		pluginDir = filepath.Join(filepath.Dir(viper.ConfigFileUsed()), "plugins")
 	}
 
-	// Look in /etc/dkron/plugins (or the used config path)
-	processors, err := plugin.Discover("dkron-processor-*", pluginDir)
+	// Look in /etc/sinx/plugins (or the used config path)
+	processors, err := plugin.Discover("sinx-processor-*", pluginDir)
 	if err != nil {
 		return err
 	}
 
-	// Look in /etc/dkron/plugins (or the used config path)
-	executors, err := plugin.Discover("dkron-executor-*", pluginDir)
+	// Look in /etc/sinx/plugins (or the used config path)
+	executors, err := plugin.Discover("sinx-executor-*", pluginDir)
 	if err != nil {
 		return err
 	}
 
-	// Next, look in the same directory as the Dkron executable, usually
+	// Next, look in the same directory as the SinX executable, usually
 	// /usr/local/bin. If found, this replaces what we found in the config path.
 	exePath, err := osext.Executable()
 	if err != nil {
 		zlog.Error().Err(err).Msg("Error loading exe directory")
 	} else {
-		p, err := plugin.Discover("dkron-processor-*", filepath.Dir(exePath))
+		p, err := plugin.Discover("sinx-processor-*", filepath.Dir(exePath))
 		if err != nil {
 			return err
 		}
 		processors = append(processors, p...)
 
-		e, err := plugin.Discover("dkron-executor-*", filepath.Dir(exePath))
+		e, err := plugin.Discover("sinx-executor-*", filepath.Dir(exePath))
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ func (p *Plugins) DiscoverPlugins() error {
 	}
 
 	// Load the embeded plugins
-	for _, pluginName := range embededPlugins {
+	for _, pluginName := range embedPlugins {
 		raw, err := p.pluginFactory(exePath, []string{pluginName}, ExecutorPluginName)
 		if err != nil {
 			return err
