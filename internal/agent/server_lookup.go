@@ -42,7 +42,7 @@ func (sl *ServerLookup) ServerAddr(id raft.ServerID) (raft.ServerAddress, error)
 	defer sl.lock.RUnlock()
 	svr, ok := sl.idToServer[id]
 	if !ok {
-		return "", fmt.Errorf("Could not find address for server id %v", id)
+		return "", fmt.Errorf("could not find address for server id %v", id)
 	}
 	return raft.ServerAddress(svr.RPCAddr.String()), nil
 }

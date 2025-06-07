@@ -3,6 +3,7 @@ package cmd
 import (
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -37,6 +38,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", logLevel,
 		`Log level (debug, info, warn, error, fatal, panic).
 If set, it will override 'log-level' in the config file which initilazed in agent command via viper.
+It's case insensitive, so you can use 'DEBUG', 'Info', etc.
 Invalid log level will be set to 'info'.`)
 	rootCmd.PersistentFlags().StringVar(&logFilename, "log-filename", logFilename,
 		`The file to write logs to. Used by the lumberjack logger.`)
@@ -74,13 +76,17 @@ func initLogger() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 
-	parsedLogLevel, err := zerolog.ParseLevel(logLevel)
+	logLevel = strings.ToLower(logLevel) // normalize the log level to lower case
+	if logLevel == "trace" {             // special case, we handle it separately.
+		logLevel = "info"
+	}
 
-	if err != nil {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	} else {
-		// zerolog's default level is Debug
-		zerolog.SetGlobalLevel(parsedLogLevel)
+	parsedLogLevel, _ := zerolog.ParseLevel(logLevel) // will return NoLevel if invalid, so we ignore the error.
+	switch parsedLogLevel {
+	case zerolog.NoLevel, zerolog.Disabled: // zerolog.Tracelevel is not useful here, i don't know why.
+		zerolog.SetGlobalLevel(zerolog.InfoLevel) // NoLevel, Disabled // will be set to InfoLevel.
+	default:
+		zerolog.SetGlobalLevel(parsedLogLevel) // TODO: if we set fatal and panic, we should also receive the info msg from hclog.
 	}
 
 	fileLogger := &lumberjack.Logger{
@@ -102,26 +108,4 @@ func initLogger() {
 		Timestamp().
 		Caller(). // Add file and line number to log
 		Logger()
-}
-
-// LogSplitter is a zerolog hook that splits logs based on their level.
-// It can be used to customize how logs are handled based on their severity.
-// TODO: Some hooks are not used yet, but they can be useful in the future.
-type LogSplitter struct{}
-
-func (l *LogSplitter) Run(e *zerolog.Event, level zerolog.Level, message string) {
-	// switch level {
-	// case zerolog.ErrorLevel, zerolog.PanicLevel, zerolog.FatalLevel:
-	// 	e.Str("level", "error").Msg(message)
-	// case zerolog.WarnLevel, zerolog.DebugLevel, zerolog.InfoLevel, zerolog.TraceLevel:
-	// 	e.Str("level", "info").Msg(message)
-	// default:
-	// 	e.Str("level", "info").Msg(message)
-	// }
-}
-
-type LogHook struct{}
-
-func (l *LogHook) Run(e *zerolog.Event, level zerolog.Level, message string) {
-	e.Str("node", cfg.NodeName)
 }

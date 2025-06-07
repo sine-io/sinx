@@ -58,7 +58,7 @@ func (t *RaftLayer) Dial(addr raft.ServerAddress, timeout time.Duration) (net.Co
 func (t *RaftLayer) Accept() (net.Conn, error) {
 	c, err := t.ln.Accept()
 	if err != nil {
-		t.logger.Error().Msgf("error accepting: ", err.Error())
+		t.logger.Error().Msgf("error accepting: %s", err.Error())
 	}
 	return c, err
 }

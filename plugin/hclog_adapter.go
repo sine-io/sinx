@@ -130,7 +130,6 @@ func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writ
 //
 // Apologies to those who find themselves here.
 func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *golog.Logger {
-
 	return golog.New(a.Logger.Level(zerolog.InfoLevel), "", 0)
 }
 

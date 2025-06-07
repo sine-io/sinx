@@ -6,7 +6,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io"
+	golog "log"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -340,6 +340,9 @@ func (a *Agent) setupRaft() error {
 	a.raftTransport = transport
 
 	raftCfg := raft.DefaultConfig()
+	// set raft logger to zerolog
+	raftLogger := &a.logger
+	raftCfg.Logger = customHclogWithZerolog("raft", a.logger.GetLevel().String(), *raftLogger)
 
 	// Raft performance
 	raftMultiplier := a.config.RaftMultiplier
@@ -352,13 +355,13 @@ func (a *Agent) setupRaft() error {
 
 	raftCfg.LocalID = raft.ServerID(a.config.NodeName)
 
-	output := io.Discard
-	if a.logger.GetLevel() == zerolog.DebugLevel {
-		// TODO: set raft log output from os.Stderr to zerolog's output
-		raftCfg.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
-	} else {
-		raftCfg.LogOutput = output
-	}
+	// output := io.Discard
+	// if a.logger.GetLevel() == zerolog.DebugLevel {
+	// 	// TODO: set raft log output from os.Stderr to zerolog's output
+	// 	raftCfg.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
+	// } else {
+	// 	raftCfg.LogOutput = output
+	// }
 
 	// Build an all in-memory setup for dev mode, otherwise prepare a full
 	// disk-based setup.
@@ -375,7 +378,12 @@ func (a *Agent) setupRaft() error {
 		var err error
 		// Create the snapshot store. This allows the Raft to truncate the log to
 		// mitigate the issue of having an unbounded replicated log.
-		snapshots, err = raft.NewFileSnapshotStore(filepath.Join(a.config.DataDir, "raft"), 3, output)
+		// snapshots, err = raft.NewFileSnapshotStore(filepath.Join(a.config.DataDir, "raft"), 3, output)
+		snapshotLogger := &a.logger
+		snapshots, err = raft.NewFileSnapshotStoreWithLogger(
+			filepath.Join(a.config.DataDir, "raft"), 3,
+			customHclogWithZerolog("snapshot", a.logger.GetLevel().String(), *snapshotLogger),
+		)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)
 		}
@@ -488,6 +496,10 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig := serf.DefaultConfig()
 	serfConfig.Init()
 
+	// set serf logger
+	serfLogger := &a.logger
+	serfConfig.Logger = golog.New(serfLogger.Hook(), "sinx-serf: ", 0) // TODO: add hook if we can set log format to json.
+
 	serfConfig.Tags = a.config.Tags
 	serfConfig.Tags["role"] = "sinx"
 	serfConfig.Tags["dc"] = a.config.Datacenter
@@ -519,14 +531,19 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.MemberlistConfig.AdvertiseAddr = advertiseIP
 	serfConfig.MemberlistConfig.AdvertisePort = advertisePort
 	serfConfig.MemberlistConfig.SecretKey = encryptKey
+	// set serf memberlist logger
+	serfMemberlistLogger := &a.logger
+	serfConfig.MemberlistConfig.Logger = golog.New(
+		serfMemberlistLogger.Hook(), "sinx-memberlist: ", 0) // TODO: add hook if we can set log format to json.
+
 	serfConfig.NodeName = config.NodeName
 	serfConfig.Tags = config.Tags
 	serfConfig.CoalescePeriod = 3 * time.Second
 	serfConfig.QuiescentPeriod = time.Second
 	serfConfig.UserCoalescePeriod = 3 * time.Second
 	serfConfig.UserQuiescentPeriod = time.Second
-	serfConfig.ReconnectTimeout, err = time.ParseDuration(config.SerfReconnectTimeout)
 
+	serfConfig.ReconnectTimeout, err = time.ParseDuration(config.SerfReconnectTimeout)
 	if err != nil {
 		a.logger.Fatal().Err(err).Send()
 	}
@@ -538,14 +555,14 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	// Start Serf
 	a.logger.Info().Msg("agent: SinX agent starting")
 
-	if a.logger.GetLevel() == zerolog.DebugLevel {
-		// TODO: set serf log output from os.Stderr to zerolog's output
-		serfConfig.LogOutput = a.logger                  // zerolog.Logger already implements io.Writer, does it work?
-		serfConfig.MemberlistConfig.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
-	} else {
-		serfConfig.LogOutput = io.Discard
-		serfConfig.MemberlistConfig.LogOutput = io.Discard
-	}
+	// if a.logger.GetLevel() == zerolog.DebugLevel {
+	// 	// TODO: set serf log output from os.Stderr to zerolog's output
+	// 	serfConfig.LogOutput = a.logger                  // zerolog.Logger already implements io.Writer, does it work?
+	// 	serfConfig.MemberlistConfig.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
+	// } else {
+	// 	serfConfig.LogOutput = io.Discard
+	// 	serfConfig.MemberlistConfig.LogOutput = io.Discard
+	// }
 
 	// Create serf first
 	serf, err := serf.Create(serfConfig)

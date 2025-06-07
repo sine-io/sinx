@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
 	"github.com/tidwall/buntdb"
 	status "google.golang.org/grpc/status"
 
@@ -49,8 +48,14 @@ func NewHTTPTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
 }
 
 func (h *HTTPTransport) ServeHTTP() {
-	if h.agent.config.LogLevel == zerolog.DebugLevel.String() {
-		gin.DefaultWriter = zlog.Logger
+	apiLogger := &h.agent.logger
+
+	if h.agent.config.LogLevel == "debug" || h.agent.config.LogLevel == "trace" {
+		gin.DefaultWriter = apiLogger.Hook(
+			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+				e.Str("level", "debug") // Add log level to each event
+			}),
+		)
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.DefaultWriter = io.Discard
@@ -61,19 +66,35 @@ func (h *HTTPTransport) ServeHTTP() {
 
 	rootPath := h.Engine.Group("/")
 
+	// Set up CORS
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
 	config.AllowMethods = []string{"*"}
 	config.AllowHeaders = []string{"*"}
 	config.ExposeHeaders = []string{"*"}
-
 	rootPath.Use(cors.New(config))
+	// Set up metadata handler
 	rootPath.Use(h.MetaMiddleware())
+	// Set up logging middleware
 	rootPath.Use(glogger.SetLogger(
 		glogger.WithLogger(func(c *gin.Context, _ zerolog.Logger) zerolog.Logger {
-			return zlog.Logger
-		}),
-	))
+
+			return apiLogger.Hook(zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+				fmt.Println(msg)
+				// var jsonFields map[string]any
+
+				// err := json.Unmarshal([]byte(msg), &jsonFields)
+				// if err != nil {
+				// 	e.Err(err)
+				// } else {
+				// 	// jsonFields["level"] = jsonFields["@level"]
+				// 	// delete(jsonFields, "@level")
+				// 	// delete(jsonFields, "@timestamp")
+
+				// 	e.Fields(jsonFields)
+				// }
+			}))
+		})))
 
 	h.APIRoutes(rootPath)
 	if h.agent.config.UI {
