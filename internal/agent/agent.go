@@ -330,11 +330,14 @@ func (a *Agent) setupRaft() error {
 		}
 	}
 
+	raftNetworkLogger := &a.logger
 	transConfig := &raft.NetworkTransportConfig{
 		Stream:                a.raftLayer,
 		MaxPool:               3,
 		Timeout:               raftTimeout,
 		ServerAddressProvider: a.serverLookup,
+		// set raft network logger to zerolog
+		Logger: customHclogWithZerolog("raft-net", a.logger.GetLevel().String(), *raftNetworkLogger),
 	}
 	transport := raft.NewNetworkTransportWithConfig(transConfig)
 	a.raftTransport = transport
