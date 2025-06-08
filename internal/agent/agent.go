@@ -6,7 +6,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	golog "log"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -358,14 +357,6 @@ func (a *Agent) setupRaft() error {
 
 	raftCfg.LocalID = raft.ServerID(a.config.NodeName)
 
-	// output := io.Discard
-	// if a.logger.GetLevel() == zerolog.DebugLevel {
-	// 	// TODO: set raft log output from os.Stderr to zerolog's output
-	// 	raftCfg.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
-	// } else {
-	// 	raftCfg.LogOutput = output
-	// }
-
 	// Build an all in-memory setup for dev mode, otherwise prepare a full
 	// disk-based setup.
 	var logStore raft.LogStore
@@ -381,7 +372,7 @@ func (a *Agent) setupRaft() error {
 		var err error
 		// Create the snapshot store. This allows the Raft to truncate the log to
 		// mitigate the issue of having an unbounded replicated log.
-		// snapshots, err = raft.NewFileSnapshotStore(filepath.Join(a.config.DataDir, "raft"), 3, output)
+		// We set the snapshot logger to zerolog
 		snapshotLogger := &a.logger
 		snapshots, err = raft.NewFileSnapshotStoreWithLogger(
 			filepath.Join(a.config.DataDir, "raft"), 3,
@@ -413,16 +404,34 @@ func (a *Agent) setupRaft() error {
 		peersFile := filepath.Join(a.config.DataDir, "raft", "peers.json")
 		if _, err := os.Stat(peersFile); err == nil {
 			a.logger.Info().Msg("found peers.json file, recovering Raft configuration...")
+
 			var configuration raft.Configuration
 			configuration, err = raft.ReadConfigJSON(peersFile)
 			if err != nil {
 				return fmt.Errorf("recovery failed to parse peers.json: %v", err)
 			}
-			store, err := NewStore(a.logger)
+
+			// set store logger to zerolog
+			storeLogger := &a.logger
+			store, err := NewStore(storeLogger.Hook(
+				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+					e.Str("store-xxxxxx", msg)
+				}),
+			))
 			if err != nil {
 				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 			}
-			tmpFsm := newFSM(store, nil, a.logger)
+
+			// set fsm logger to zerolog
+			tmpFsmLogger := &a.logger
+			tmpFsm := newFSM(
+				store, nil,
+				tmpFsmLogger.Hook(
+					zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+						e.Str("tmpFsm-xxxxxx", msg)
+					}),
+				))
+
 			if err := raft.RecoverCluster(raftCfg, tmpFsm,
 				logStore, stableStore, snapshots, transport, configuration); err != nil {
 				return fmt.Errorf("recovery failed: %v", err)
@@ -458,7 +467,17 @@ func (a *Agent) setupRaft() error {
 
 	// Instantiate the Raft systems. The second parameter is a finite state machine
 	// which stores the actual kv pairs and is operated upon through Apply().
-	fsm := newFSM(a.Store, a.ProAppliers, a.logger)
+	// set fsm logger to zerolog.
+	fsmLogger := &a.logger
+	fsm := newFSM(
+		a.Store, a.ProAppliers,
+		fsmLogger.Hook(
+			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+				e.Str("fsm-xxxxxx", msg)
+			}),
+		),
+	)
+
 	rft, err := raft.NewRaft(raftCfg, fsm, logStore, stableStore, snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
@@ -501,7 +520,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 
 	// set serf logger
 	serfLogger := &a.logger
-	serfConfig.Logger = golog.New(serfLogger.Hook(), "sinx-serf: ", 0) // TODO: add hook if we can set log format to json.
+	serfConfig.Logger = customGologWithZerolog(*serfLogger)
 
 	serfConfig.Tags = a.config.Tags
 	serfConfig.Tags["role"] = "sinx"
@@ -534,10 +553,10 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.MemberlistConfig.AdvertiseAddr = advertiseIP
 	serfConfig.MemberlistConfig.AdvertisePort = advertisePort
 	serfConfig.MemberlistConfig.SecretKey = encryptKey
+
 	// set serf memberlist logger
 	serfMemberlistLogger := &a.logger
-	serfConfig.MemberlistConfig.Logger = golog.New(
-		serfMemberlistLogger.Hook(), "sinx-memberlist: ", 0) // TODO: add hook if we can set log format to json.
+	serfConfig.MemberlistConfig.Logger = customGologWithZerolog(*serfMemberlistLogger)
 
 	serfConfig.NodeName = config.NodeName
 	serfConfig.Tags = config.Tags
@@ -558,15 +577,6 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	// Start Serf
 	a.logger.Info().Msg("agent: SinX agent starting")
 
-	// if a.logger.GetLevel() == zerolog.DebugLevel {
-	// 	// TODO: set serf log output from os.Stderr to zerolog's output
-	// 	serfConfig.LogOutput = a.logger                  // zerolog.Logger already implements io.Writer, does it work?
-	// 	serfConfig.MemberlistConfig.LogOutput = a.logger // zerolog.Logger already implements io.Writer, does it work?
-	// } else {
-	// 	serfConfig.LogOutput = io.Discard
-	// 	serfConfig.MemberlistConfig.LogOutput = io.Discard
-	// }
-
 	// Create serf first
 	serf, err := serf.Create(serfConfig)
 	if err != nil {
@@ -579,17 +589,35 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 // StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
 	if a.Store == nil {
-		s, err := NewStore(a.logger)
+		// set store logger to zerolog
+		storeLogger := &a.logger
+		s, err := NewStore(
+			storeLogger.Hook(
+				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+					e.Str("store-xxxxxx", msg)
+				}),
+			),
+		)
 		if err != nil {
 			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 		}
+
 		a.Store = s
 	}
 
-	a.sched = NewScheduler(a.logger)
+	// set schduler logger to zerolog
+	schdLogger := &a.logger
+	a.sched = NewScheduler(
+		schdLogger.Hook(),
+	)
 
 	if a.HTTPTransport == nil {
-		a.HTTPTransport = NewHTTPTransport(a, a.logger)
+		// set http transport logger to zerolog
+		transLogger := &a.logger
+		a.HTTPTransport = NewHTTPTransport(
+			a,
+			transLogger.Hook(),
+		)
 	}
 	a.HTTPTransport.ServeHTTP()
 
@@ -597,10 +625,19 @@ func (a *Agent) StartServer() {
 	tcpm := cmux.New(a.listener)
 	var grpcl, raftl net.Listener
 
+	// set raft layer logger to zerolog
+	raftLayerLogger := &a.logger
 	// If TLS config present listen to TLS
 	if a.TLSConfig != nil {
 		// Create a RaftLayer with TLS
-		a.raftLayer = NewTLSRaftLayer(a.TLSConfig, a.logger)
+		a.raftLayer = NewTLSRaftLayer(
+			a.TLSConfig,
+			raftLayerLogger.Hook(
+				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+					e.Str("tls-raft-layer-xxxxxx", msg)
+				}),
+			),
+		)
 
 		// Match any connection to the recursive mux
 		tlsl := tcpm.Match(cmux.Any())
@@ -622,7 +659,13 @@ func (a *Agent) StartServer() {
 		}()
 	} else {
 		// Declare a plain RaftLayer
-		a.raftLayer = NewRaftLayer(a.logger)
+		a.raftLayer = NewRaftLayer(
+			raftLayerLogger.Hook(
+				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+					e.Str("raft-layer-xxxxxx", msg)
+				}),
+			),
+		)
 
 		// Declare the match for gRPC
 		grpcl = tcpm.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
@@ -632,7 +675,16 @@ func (a *Agent) StartServer() {
 	}
 
 	if a.GRPCServer == nil {
-		a.GRPCServer = NewGRPCServer(a, a.logger)
+		// set gRPC server logger to zerolog
+		grpcLogger := &a.logger
+		a.GRPCServer = NewGRPCServer(
+			a,
+			grpcLogger.Hook(
+				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+					e.Str("grpc-server-xxxxxx", msg)
+				}),
+			),
+		)
 	}
 
 	if err := a.GRPCServer.Serve(grpcl); err != nil {

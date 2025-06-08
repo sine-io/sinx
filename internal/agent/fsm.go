@@ -31,13 +31,13 @@ const (
 )
 
 // LogApplier is the definition of a function that can apply a Raft log
-type LogApplier func(buf []byte, index uint64) interface{}
+type LogApplier func(buf []byte, index uint64) any
 
 // LogAppliers is a mapping of the Raft MessageType to the appropriate log
 // applier
 type LogAppliers map[MessageType]LogApplier
 
-type dkronFSM struct {
+type raftFSM struct {
 	store Storage
 
 	// proAppliers holds the set of pro only LogAppliers
@@ -46,8 +46,8 @@ type dkronFSM struct {
 }
 
 // NewFSM is used to construct a new FSM with a blank state
-func newFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *dkronFSM {
-	return &dkronFSM{
+func newFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *raftFSM {
+	return &raftFSM{
 		store:       store,
 		proAppliers: logAppliers,
 		logger:      logger,
@@ -55,7 +55,7 @@ func newFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *dkro
 }
 
 // Apply applies a Raft log entry to the key-value store.
-func (d *dkronFSM) Apply(l *raft.Log) interface{} {
+func (d *raftFSM) Apply(l *raft.Log) any {
 	buf := l.Data
 	msgType := MessageType(buf[0])
 
@@ -80,7 +80,7 @@ func (d *dkronFSM) Apply(l *raft.Log) interface{} {
 	return nil
 }
 
-func (d *dkronFSM) applySetJob(buf []byte) interface{} {
+func (d *raftFSM) applySetJob(buf []byte) any {
 	var pj sxproto.Job
 	if err := proto.Unmarshal(buf, &pj); err != nil {
 		return err
@@ -92,7 +92,7 @@ func (d *dkronFSM) applySetJob(buf []byte) interface{} {
 	return nil
 }
 
-func (d *dkronFSM) applyDeleteJob(buf []byte) interface{} {
+func (d *raftFSM) applyDeleteJob(buf []byte) any {
 	var djr sxproto.DeleteJobRequest
 	if err := proto.Unmarshal(buf, &djr); err != nil {
 		return err
@@ -104,7 +104,7 @@ func (d *dkronFSM) applyDeleteJob(buf []byte) interface{} {
 	return job
 }
 
-func (d *dkronFSM) applyExecutionDone(buf []byte) interface{} {
+func (d *raftFSM) applyExecutionDone(buf []byte) interface{} {
 	var execDoneReq sxproto.ExecutionDoneRequest
 	if err := proto.Unmarshal(buf, &execDoneReq); err != nil {
 		return err
@@ -120,7 +120,7 @@ func (d *dkronFSM) applyExecutionDone(buf []byte) interface{} {
 	return err
 }
 
-func (d *dkronFSM) applySetExecution(buf []byte) interface{} {
+func (d *raftFSM) applySetExecution(buf []byte) interface{} {
 	var pbex sxproto.Execution
 	if err := proto.Unmarshal(buf, &pbex); err != nil {
 		return err
@@ -134,25 +134,25 @@ func (d *dkronFSM) applySetExecution(buf []byte) interface{} {
 }
 
 // Snapshot returns a snapshot of the key-value store. We wrap
-// the things we need in dkronSnapshot and then send that over to Persist.
-// Persist encodes the needed data from dkronSnapshot and transport it to
+// the things we need in fsmSnapshot and then send that over to Persist.
+// Persist encodes the needed data from fsmSnapshot and transport it to
 // Restore where the necessary data is replicated into the finite state machine.
 // This allows the consensus algorithm to truncate the replicated log.
-func (d *dkronFSM) Snapshot() (raft.FSMSnapshot, error) {
-	return &dkronSnapshot{store: d.store}, nil
+func (d *raftFSM) Snapshot() (raft.FSMSnapshot, error) {
+	return &fsmSnapshot{store: d.store}, nil
 }
 
 // Restore stores the key-value store to a previous state.
-func (d *dkronFSM) Restore(r io.ReadCloser) error {
+func (d *raftFSM) Restore(r io.ReadCloser) error {
 	defer r.Close()
 	return d.store.Restore(r)
 }
 
-type dkronSnapshot struct {
+type fsmSnapshot struct {
 	store Storage
 }
 
-func (d *dkronSnapshot) Persist(sink raft.SnapshotSink) error {
+func (d *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	if err := d.store.Snapshot(sink); err != nil {
 		_ = sink.Cancel()
 		return err
@@ -166,4 +166,4 @@ func (d *dkronSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil
 }
 
-func (d *dkronSnapshot) Release() {}
+func (d *fsmSnapshot) Release() {}
