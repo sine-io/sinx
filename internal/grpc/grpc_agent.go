@@ -1,4 +1,4 @@
-package agent
+package grpc
 
 import (
 	"errors"
@@ -53,7 +53,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 	job := req.Job
 	execution := req.Execution
 
-	as.agent.logger.Info().Str("job", job.Name).Msg("grpc_agent: Starting job")
+	as.agent.Logger.Info().Str("job", job.Name).Msg("grpc_agent: Starting job")
 
 	output, _ := circbuf.NewBuffer(maxBufSize)
 
@@ -64,7 +64,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 
 	// Send the first update with the initial execution state to be stored in the server
 	execution.StartedAt = timestamppb.Now()
-	execution.NodeName = as.agent.config.NodeName
+	execution.NodeName = as.agent.Config.NodeName
 
 	if err := stream.Send(&sxproto.AgentRunStream{
 		Execution: execution,
@@ -78,7 +78,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 
 	// Check if executor exists
 	if executor, ok := as.agent.ExecutorPlugins[jex]; ok {
-		as.agent.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
+		as.agent.Logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
 
 		runningExecutions.Store(execution.GetGroup(), execution)
 		out, err := executor.Execute(&sxproto.ExecuteRequest{
@@ -93,7 +93,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 			err = errors.New(out.Error)
 		}
 		if err != nil {
-			as.agent.logger.Error().Err(err).Str("job", job.Name).Any("plugin", executor).Msg(
+			as.agent.Logger.Error().Err(err).Str("job", job.Name).Any("plugin", executor).Msg(
 				"grpc_agent: command error output")
 
 			success = false
@@ -106,7 +106,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 			_, _ = output.Write(out.Output)
 		}
 	} else {
-		as.agent.logger.Error().Str("executor", jex).Msg("grpc_agent: Specified executor is not present")
+		as.agent.Logger.Error().Str("executor", jex).Msg("grpc_agent: Specified executor is not present")
 		_, _ = output.Write([]byte("grpc_agent: Specified executor is not present"))
 	}
 
@@ -121,7 +121,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 		Execution: execution,
 	}); err != nil {
 		// In case of error means that maybe the server is gone so fallback to ExecutionDone
-		as.agent.logger.Error().Err(err).Str("job", job.Name).Msg(
+		as.agent.Logger.Error().Err(err).Str("job", job.Name).Msg(
 			"grpc_agent: error sending the final execution, falling back to ExecutionDone")
 
 		rpcServer, err := as.agent.CheckAndSelectServer()

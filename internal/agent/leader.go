@@ -26,13 +26,13 @@ func (a *Agent) monitorLeadership() {
 	var weAreLeaderCh chan struct{}
 	var leaderLoop sync.WaitGroup
 	for {
-		a.logger.Info().Msg("dkron: monitoring leadership")
+		a.Logger.Info().Msg("dkron: monitoring leadership")
 		select {
 		case isLeader := <-a.leaderCh:
 			switch {
 			case isLeader:
 				if weAreLeaderCh != nil {
-					a.logger.Error().Msg("dkron: attempted to start the leader loop while running")
+					a.Logger.Error().Msg("dkron: attempted to start the leader loop while running")
 					continue
 				}
 
@@ -42,19 +42,19 @@ func (a *Agent) monitorLeadership() {
 					defer leaderLoop.Done()
 					a.leaderLoop(ch)
 				}(weAreLeaderCh)
-				a.logger.Info().Msg("dkron: cluster leadership acquired")
+				a.Logger.Info().Msg("dkron: cluster leadership acquired")
 
 			default:
 				if weAreLeaderCh == nil {
-					a.logger.Error().Msg("dkron: attempted to stop the leader loop while not running")
+					a.Logger.Error().Msg("dkron: attempted to stop the leader loop while not running")
 					continue
 				}
 
-				a.logger.Debug().Msg("dkron: shutting down leader loop")
+				a.Logger.Debug().Msg("dkron: shutting down leader loop")
 				close(weAreLeaderCh)
 				leaderLoop.Wait()
 				weAreLeaderCh = nil
-				a.logger.Info().Msg("dkron: cluster leadership lost")
+				a.Logger.Info().Msg("dkron: cluster leadership lost")
 			}
 
 		case <-a.shutdownCh:
@@ -71,7 +71,7 @@ func (a *Agent) leadershipTransfer() error {
 			// Stop the scheduler, running jobs will continue to finish but we
 			// can not actively wait for them blocking the execution here.
 			a.sched.Stop()
-			a.logger.Info().Msg("dkron: successfully transferred leadership")
+			a.Logger.Info().Msg("dkron: successfully transferred leadership")
 			return nil
 		}
 
@@ -81,7 +81,7 @@ func (a *Agent) leadershipTransfer() error {
 			return fmt.Errorf("leadership transfer not supported with Raft version lower than 3")
 		}
 
-		a.logger.Error().
+		a.Logger.Error().
 			Int("attempt", i).
 			Int("retry_limit", retryCount).
 			AnErr("error", err).
@@ -101,13 +101,13 @@ func (a *Agent) leaderLoop(stopCh chan struct{}) {
 RECONCILE:
 	// Setup a reconciliation timer
 	reconcileCh = nil
-	interval := time.After(a.config.ReconcileInterval)
+	interval := time.After(a.Config.ReconcileInterval)
 
 	// Apply a raft barrier to ensure our FSM is caught up
 	start := time.Now()
 	barrier := a.raft.Barrier(barrierWriteTimeout)
 	if err := barrier.Error(); err != nil {
-		a.logger.Error().Err(err).Msg("dkron: failed to wait for barrier")
+		a.Logger.Error().Err(err).Msg("dkron: failed to wait for barrier")
 
 		goto WAIT
 	}
@@ -116,19 +116,19 @@ RECONCILE:
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
 		if err := a.establishLeadership(stopCh); err != nil {
-			a.logger.Error().Err(err).Msg("dkron: failed to establish leadership")
+			a.Logger.Error().Err(err).Msg("dkron: failed to establish leadership")
 
 			// Immediately revoke leadership since we didn't successfully
 			// establish leadership.
 			if err := a.revokeLeadership(); err != nil {
-				a.logger.Error().Err(err).Msg("dkron: failed to revoke leadership")
+				a.Logger.Error().Err(err).Msg("dkron: failed to revoke leadership")
 			}
 
 			// Attempt to transfer leadership. If successful, leave the
 			// leaderLoop since this node is no longer the leader. Otherwise
 			// try to establish leadership again after 5 seconds.
 			if err := a.leadershipTransfer(); err != nil {
-				a.logger.Error().AnErr("error", err).Msg("failed to transfer leadership")
+				a.Logger.Error().AnErr("error", err).Msg("failed to transfer leadership")
 				interval = time.After(5 * time.Second)
 				goto WAIT
 			}
@@ -138,14 +138,14 @@ RECONCILE:
 		establishedLeader = true
 		defer func() {
 			if err := a.revokeLeadership(); err != nil {
-				a.logger.Error().Err(err).Msg("dkron: failed to revoke leadership")
+				a.Logger.Error().Err(err).Msg("dkron: failed to revoke leadership")
 			}
 		}()
 	}
 
 	// Reconcile any missing data
 	if err := a.reconcile(); err != nil {
-		a.logger.Error().Err(err).Msg("dkron: failed to reconcile")
+		a.Logger.Error().Err(err).Msg("dkron: failed to reconcile")
 		goto WAIT
 	}
 
@@ -176,7 +176,7 @@ WAIT:
 			goto RECONCILE
 		case member := <-reconcileCh:
 			if err := a.reconcileMember(member); err != nil {
-				a.logger.Error().Err(err).Msg("dkron: failed to reconcile member")
+				a.Logger.Error().Err(err).Msg("dkron: failed to reconcile member")
 			}
 		}
 	}
@@ -187,7 +187,7 @@ WAIT:
 func (a *Agent) reconcile() error {
 	defer metrics.MeasureSince([]string{"dkron", "leader", "reconcile"}, time.Now())
 
-	members := a.serf.Members()
+	members := a.Serf.Members()
 	for _, member := range members {
 		if err := a.reconcileMember(member); err != nil {
 			return err
@@ -200,7 +200,7 @@ func (a *Agent) reconcile() error {
 func (a *Agent) reconcileMember(member serf.Member) error {
 	// Check if this is a member we should handle
 	valid, parts := isServer(member)
-	if !valid || parts.Region != a.config.Region {
+	if !valid || parts.Region != a.Config.Region {
 		return nil
 	}
 	defer metrics.MeasureSince([]string{"dkron", "leader", "reconcileMember"}, time.Now())
@@ -213,7 +213,7 @@ func (a *Agent) reconcileMember(member serf.Member) error {
 		err = a.removeRaftPeer(member, parts)
 	}
 	if err != nil {
-		a.logger.Error().Err(err).Any("member", member).Msg("failed to reconcile member")
+		a.Logger.Error().Err(err).Any("member", member).Msg("failed to reconcile member")
 		return err
 	}
 	return nil
@@ -226,7 +226,7 @@ func (a *Agent) reconcileMember(member serf.Member) error {
 func (a *Agent) establishLeadership(stopCh chan struct{}) error {
 	defer metrics.MeasureSince([]string{"dkron", "leader", "establish_leadership"}, time.Now())
 
-	a.logger.Info().Msg("agent: Starting scheduler")
+	a.Logger.Info().Msg("agent: Starting scheduler")
 	jobs, err := a.Store.GetJobs(nil)
 	if err != nil {
 		return err
@@ -248,12 +248,12 @@ func (a *Agent) revokeLeadership() error {
 // addRaftPeer is used to add a new Raft peer when a dkron server joins
 func (a *Agent) addRaftPeer(m serf.Member, parts *ServerParts) error {
 	// Check for possibility of multiple bootstrap nodes
-	members := a.serf.Members()
+	members := a.Serf.Members()
 	if parts.Bootstrap {
 		for _, member := range members {
 			valid, p := isServer(member)
 			if valid && member.Name != m.Name && p.Bootstrap {
-				a.logger.Error().
+				a.Logger.Error().
 					Msgf(
 						"dkron: '%v' and '%v' are both in bootstrap mode. Only one node should be in bootstrap mode, not adding Raft peer.",
 						m.Name, member.Name)
@@ -268,13 +268,13 @@ func (a *Agent) addRaftPeer(m serf.Member, parts *ServerParts) error {
 	addr := (&net.TCPAddr{IP: m.Addr, Port: parts.Port}).String()
 	configFuture := a.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
-		a.logger.Error().Err(err).Msg("dkron: failed to get raft configuration")
+		a.Logger.Error().Err(err).Msg("dkron: failed to get raft configuration")
 		return err
 	}
 
-	if m.Name == a.config.NodeName {
+	if m.Name == a.Config.NodeName {
 		if l := len(configFuture.Configuration().Servers); l < 3 {
-			a.logger.Debug().Str("peer", m.Name).
+			a.Logger.Debug().Str("peer", m.Name).
 				Msg("dkron: Skipping self join check since the cluster is too small")
 			return nil
 		}
@@ -297,7 +297,7 @@ func (a *Agent) addRaftPeer(m serf.Member, parts *ServerParts) error {
 				if err := future.Error(); err != nil {
 					return fmt.Errorf("error removing server with duplicate address %q: %s", server.Address, err)
 				}
-				a.logger.Info().Any("server", server.Address).Msg("dkron: removed server with duplicate address")
+				a.Logger.Info().Any("server", server.Address).Msg("dkron: removed server with duplicate address")
 			}
 		}
 	}
@@ -307,7 +307,7 @@ func (a *Agent) addRaftPeer(m serf.Member, parts *ServerParts) error {
 	case minRaftProtocol >= 3:
 		addFuture := a.raft.AddVoter(raft.ServerID(parts.ID), raft.ServerAddress(addr), 0, 0)
 		if err := addFuture.Error(); err != nil {
-			a.logger.Error().Err(err).Msg("dkron: failed to add raft peer")
+			a.Logger.Error().Err(err).Msg("dkron: failed to add raft peer")
 			return err
 		}
 	}
@@ -322,8 +322,8 @@ func (a *Agent) removeRaftPeer(m serf.Member, parts *ServerParts) error {
 	// Do not remove ourself. This can only happen if the current leader
 	// is leaving. Instead, we should allow a follower to take-over and
 	// deregister us later.
-	if strings.EqualFold(m.Name, a.config.NodeName) {
-		a.logger.Warn().Str("name", a.config.NodeName).Msg("removing self should be done by follower")
+	if strings.EqualFold(m.Name, a.Config.NodeName) {
+		a.Logger.Warn().Str("name", a.Config.NodeName).Msg("removing self should be done by follower")
 
 		return nil
 	}
@@ -333,7 +333,7 @@ func (a *Agent) removeRaftPeer(m serf.Member, parts *ServerParts) error {
 	// log entries.
 	configFuture := a.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
-		a.logger.Error().Err(err).Msg("dkron: failed to get raft configuration")
+		a.Logger.Error().Err(err).Msg("dkron: failed to get raft configuration")
 		return err
 	}
 
@@ -341,10 +341,10 @@ func (a *Agent) removeRaftPeer(m serf.Member, parts *ServerParts) error {
 	for _, server := range configFuture.Configuration().Servers {
 		// If we understand the new add/remove APIs and the server was added by ID, use the new remove API
 		if minRaftProtocol >= 2 && server.ID == raft.ServerID(parts.ID) {
-			a.logger.Info().Any("server", server.ID).Msg("dkron: removing server by ID")
+			a.Logger.Info().Any("server", server.ID).Msg("dkron: removing server by ID")
 			future := a.raft.RemoveServer(raft.ServerID(parts.ID), 0, 0)
 			if err := future.Error(); err != nil {
-				a.logger.Error().Err(err).Any("server", server.ID).Msg("dkron: failed to remove raft peer")
+				a.Logger.Error().Err(err).Any("server", server.ID).Msg("dkron: failed to remove raft peer")
 				return err
 			}
 			break

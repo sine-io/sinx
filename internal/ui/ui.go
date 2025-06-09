@@ -12,7 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const uiPathPrefix = "ui/"
+const (
+	uiPathPrefix  = "ui/"
+	apiPathPrefix = "v1"
+)
 
 //go:embed ui-dist
 var uiDist embed.FS

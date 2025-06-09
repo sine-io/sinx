@@ -1,4 +1,4 @@
-package agent
+package grpc
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
-	"github.com/rs/zerolog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -43,15 +42,13 @@ type DkronGRPCServer interface {
 // GRPCServer is the local implementation of the gRPC server interface.
 type GRPCServer struct {
 	sxproto.DkronServer
-	agent  *Agent
-	logger zerolog.Logger
+	agent *Agent
 }
 
 // NewGRPCServer creates and returns an instance of a DkronGRPCServer implementation
-func NewGRPCServer(agent *Agent, logger zerolog.Logger) DkronGRPCServer {
+func NewGRPCServer(agent *Agent) DkronGRPCServer {
 	return &GRPCServer{
-		agent:  agent,
-		logger: logger,
+		agent: agent,
 	}
 }
 

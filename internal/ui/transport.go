@@ -7,7 +7,25 @@ import (
 	glogger "github.com/gin-contrib/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+
+	sxagent "github.com/sine-io/sinx/internal/agent"
 )
+
+type Transport interface {
+	ServeHTTP()
+}
+
+type HTTPTransport struct {
+	Engine *gin.Engine
+	agent  *sxagent.Agent
+}
+
+func NewHTTPTransport(agent *sxagent.Agent) *HTTPTransport {
+	return &HTTPTransport{
+		Engine: gin.Default(),
+		agent:  agent,
+	}
+}
 
 func (h *HTTPTransport) ServeHTTP() {
 	if h.agent.Config.LogLevel == "debug" {

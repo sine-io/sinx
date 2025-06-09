@@ -110,7 +110,7 @@ type Agent struct {
 
 	// peers is used to track the known SinX servers. This is
 	// used for region forwarding and clustering.
-	peers        map[string][]*ServerParts
+	Peers        map[string][]*ServerParts
 	localPeers   map[raft.ServerAddress]*ServerParts
 	peerLock     sync.RWMutex
 	serverLookup *ServerLookup
