@@ -132,7 +132,6 @@ func (s *Scheduler) GetEntryJob(jobName string) (EntryJob, bool) {
 			s.logger.Error().
 				Msgf("scheduler: Failed to cast job to *Job found type %T", e.Job)
 		} else {
-			j.logger = s.logger
 			if j.Name == jobName {
 				return EntryJob{
 					entry: &e,

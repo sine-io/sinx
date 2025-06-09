@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/spf13/cobra"
 
-	sxagent "github.com/sine-io/sinx/internal/agent"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 func init() {
@@ -19,9 +19,9 @@ var versionCmd = &cobra.Command{
 	Short: "Show version",
 	Long:  `Show the version`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Name: %s\n", sxagent.Name)
-		fmt.Printf("Version: %s\n", sxagent.Version)
-		fmt.Printf("Codename: %s\n", sxagent.Codename)
+		fmt.Printf("Name: %s\n", sxconfig.Name)
+		fmt.Printf("Version: %s\n", sxconfig.Version)
+		fmt.Printf("Codename: %s\n", sxconfig.Codename)
 		fmt.Printf("Agent Protocol: %d (Understands back to: %d)\n",
 			serf.ProtocolVersionMax, serf.ProtocolVersionMin)
 	},

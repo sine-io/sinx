@@ -1,4 +1,4 @@
-package agent
+package ui
 
 import (
 	"encoding/json"
@@ -8,16 +8,15 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/expvar"
-	glogger "github.com/gin-contrib/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	status "google.golang.org/grpc/status"
 
+	sxagent "github.com/sine-io/sinx/internal/agent"
+	sxjob "github.com/sine-io/sinx/internal/job"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -26,88 +25,16 @@ const (
 	apiPathPrefix = "v1"
 )
 
-// Transport is the interface that wraps the ServeHTTP method.
-type Transport interface {
-	ServeHTTP()
-}
-
-// HTTPTransport stores pointers to an agent and a gin Engine.
 type HTTPTransport struct {
 	Engine *gin.Engine
-
-	agent  *Agent
-	logger zerolog.Logger
+	agent  *sxagent.Agent
 }
 
-// NewHTTPTransport creates an HTTPTransport with a bound agent.
-func NewHTTPTransport(a *Agent, log zerolog.Logger) *HTTPTransport {
+func NewHTTPTransport(agent *sxagent.Agent) *HTTPTransport {
 	return &HTTPTransport{
-		agent:  a,
-		logger: log,
+		Engine: gin.Default(),
+		agent:  agent,
 	}
-}
-
-func (h *HTTPTransport) ServeHTTP() {
-	apiLogger := &h.agent.logger
-
-	if h.agent.config.LogLevel == "debug" || h.agent.config.LogLevel == "trace" {
-		gin.DefaultWriter = apiLogger.Hook(
-			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-				e.Str("level", "debug") // Add log level to each event
-			}),
-		)
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.DefaultWriter = io.Discard
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	h.Engine = gin.Default()
-
-	rootPath := h.Engine.Group("/")
-
-	// Set up CORS
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.AllowMethods = []string{"*"}
-	config.AllowHeaders = []string{"*"}
-	config.ExposeHeaders = []string{"*"}
-	rootPath.Use(cors.New(config))
-	// Set up metadata handler
-	rootPath.Use(h.MetaMiddleware())
-	// Set up logging middleware
-	rootPath.Use(glogger.SetLogger(
-		glogger.WithLogger(func(c *gin.Context, _ zerolog.Logger) zerolog.Logger {
-
-			return apiLogger.Hook(zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-				fmt.Println(msg)
-				// var jsonFields map[string]any
-
-				// err := json.Unmarshal([]byte(msg), &jsonFields)
-				// if err != nil {
-				// 	e.Err(err)
-				// } else {
-				// 	// jsonFields["level"] = jsonFields["@level"]
-				// 	// delete(jsonFields, "@level")
-				// 	// delete(jsonFields, "@timestamp")
-
-				// 	e.Fields(jsonFields)
-				// }
-			}))
-		})))
-
-	h.APIRoutes(rootPath)
-	if h.agent.config.UI {
-		h.UI(rootPath, false)
-	}
-
-	h.logger.Info().Str("address", h.agent.config.HTTPAddr).Msg("api: Running HTTP server")
-
-	go func() {
-		if err := h.Engine.Run(h.agent.config.HTTPAddr); err != nil {
-			h.logger.Error().Err(err).Msg("api: Error starting HTTP server")
-		}
-	}()
 }
 
 // APIRoutes registers the api routes on the gin RouterGroup.
@@ -120,7 +47,7 @@ func (h *HTTPTransport) APIRoutes(r *gin.RouterGroup, middleware ...gin.HandlerF
 		})
 	})
 
-	if h.agent.config.EnablePrometheus {
+	if h.agent.Config.EnablePrometheus {
 		// Prometheus metrics scrape endpoint
 		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	}
@@ -158,7 +85,7 @@ func (h *HTTPTransport) APIRoutes(r *gin.RouterGroup, middleware ...gin.HandlerF
 // MetaMiddleware adds middleware to the gin Context.
 func (h *HTTPTransport) MetaMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Whom", h.agent.config.NodeName)
+		c.Header("X-Whom", agent.Config.NodeName)
 		c.Next()
 	}
 }
@@ -172,14 +99,14 @@ func renderJSON(c *gin.Context, status int, v interface{}) {
 }
 
 func (h *HTTPTransport) indexHandler(c *gin.Context) {
-	local := h.agent.serf.LocalMember()
+	local := agent.Serf.LocalMember()
 
 	stats := map[string]map[string]string{
 		"agent": {
 			"name":    local.Name,
 			"version": Version,
 		},
-		"serf": h.agent.serf.Stats(),
+		"serf": agent.Serf.Stats(),
 		"tags": local.Tags,
 	}
 
@@ -195,7 +122,7 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 	order := c.DefaultQuery("_order", "ASC")
 	q := c.Query("q")
 
-	jobs, err := h.agent.Store.GetJobs(
+	jobs, err := agent.Store.GetJobs(
 		&JobOptions{
 			Metadata: metadata,
 			Sort:     sort,
@@ -206,7 +133,7 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		h.logger.Error().Err(err).Msg("api: Unable to get jobs, store not reachable.")
+		agent.Logger.Error().Err(err).Msg("api: Unable to get jobs, store not reachable.")
 		return
 	}
 
@@ -234,9 +161,9 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := agent.Store.GetJob(jobName, nil)
 	if err != nil {
-		h.logger.Error().Err(err)
+		agent.Logger.Error().Err(err)
 	}
 	if job == nil {
 		c.AbortWithStatus(http.StatusNotFound)
@@ -247,19 +174,19 @@ func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 
 func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	// Init the Job object with defaults
-	job := Job{
+	job := sxjob.Job{
 		Concurrency: ConcurrencyAllow,
 	}
 
 	// Check if the job is already in the context set by the middleware
 	val, exists := c.Get("job")
 	if exists {
-		job = val.(Job)
+		job = val.(sxjob.Job)
 	} else {
 		// Parse values from JSON
 		if err := c.BindJSON(&job); err != nil {
 			_, _ = c.Writer.WriteString(fmt.Sprintf("Unable to parse payload: %s.", err))
-			h.logger.Error().Err(err)
+			agent.Logger.Error().Err(err)
 			return
 		}
 		// Get the owner from the context, if it exists
@@ -278,7 +205,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	}
 
 	// Call gRPC SetJob
-	if err := h.agent.GRPCClient.SetJob(&job); err != nil {
+	if err := agent.GRPCClient.SetJob(&job); err != nil {
 		s := status.Convert(err)
 		if s.Message() == ErrParentJobNotFound.Error() {
 			c.AbortWithStatus(http.StatusNotFound)
@@ -292,8 +219,8 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	// Immediately run the job if so requested
 	if _, exists := c.GetQuery("runoncreate"); exists {
 		go func() {
-			if _, err := h.agent.GRPCClient.RunJob(job.Name); err != nil {
-				h.logger.Error().Err(err).Msg("api: Unable to run job.")
+			if _, err := agent.GRPCClient.RunJob(job.Name); err != nil {
+				agent.Logger.Error().Err(err).Msg("api: Unable to run job.")
 			}
 		}()
 	}
@@ -306,7 +233,7 @@ func (h *HTTPTransport) jobDeleteHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
 	// Call gRPC DeleteJob
-	job, err := h.agent.GRPCClient.DeleteJob(jobName)
+	job, err := agent.GRPCClient.DeleteJob(jobName)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -318,7 +245,7 @@ func (h *HTTPTransport) jobRunHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
 	// Call gRPC RunJob
-	job, err := h.agent.GRPCClient.RunJob(jobName)
+	job, err := agent.GRPCClient.RunJob(jobName)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -343,7 +270,7 @@ func (h *HTTPTransport) restoreHandler(c *gin.Context) {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
-	var jobs []*Job
+	var jobs []*sxjob.Job
 	err = json.Unmarshal(data, &jobs)
 
 	if err != nil {
@@ -351,12 +278,12 @@ func (h *HTTPTransport) restoreHandler(c *gin.Context) {
 		return
 	}
 
-	jobTree, err := generateJobTree(jobs)
+	jobTree, err := sxjob.GenerateJobTree(jobs)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
-	result := h.agent.recursiveSetJob(jobTree)
+	result := agent.recursiveSetJob(jobTree)
 	resp, err := json.Marshal(result)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
@@ -383,13 +310,13 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 		outputSizeLimit = -1
 	}
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := agent.Store.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.Store.GetExecutions(job.Name,
+	executions, err := agent.Store.GetExecutions(job.Name,
 		&ExecutionOptions{
 			Sort:     sort,
 			Order:    order,
@@ -399,7 +326,7 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 	if err == buntdb.ErrNotFound {
 		executions = make([]*Execution, 0)
 	} else if err != nil {
-		h.logger.Error().Err(err)
+		agent.Logger.Error().Err(err)
 		return
 	}
 
@@ -424,13 +351,13 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	jobName := c.Param("job")
 	executionName := c.Param("execution")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := agent.Store.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.Store.GetExecutions(job.Name,
+	executions, err := agent.Store.GetExecutions(job.Name,
 		&ExecutionOptions{
 			Sort:     "",
 			Order:    "",
@@ -439,7 +366,7 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	)
 
 	if err != nil {
-		h.logger.Error().Err(err)
+		agent.Logger.Error().Err(err)
 		return
 	}
 
@@ -453,7 +380,7 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 
 func (h *HTTPTransport) membersHandler(c *gin.Context) {
 	mems := []*sxproto.Member{}
-	for _, m := range h.agent.serf.Members() {
+	for _, m := range agent.Serf.Members() {
 		id, _ := uuid.GenerateUUID()
 		mid := &sxproto.Member{
 			Member:     m,
@@ -467,7 +394,7 @@ func (h *HTTPTransport) membersHandler(c *gin.Context) {
 }
 
 func (h *HTTPTransport) leaderHandler(c *gin.Context) {
-	member, err := h.agent.leaderMember()
+	member, err := agent.leaderMember()
 	if err != nil {
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
 	}
@@ -478,7 +405,7 @@ func (h *HTTPTransport) leaderHandler(c *gin.Context) {
 }
 
 func (h *HTTPTransport) isLeaderHandler(c *gin.Context) {
-	isleader := h.agent.IsLeader()
+	isleader := agent.IsLeader()
 	if isleader {
 		renderJSON(c, http.StatusOK, "I am a leader")
 	} else {
@@ -487,16 +414,16 @@ func (h *HTTPTransport) isLeaderHandler(c *gin.Context) {
 }
 
 func (h *HTTPTransport) leaveHandler(c *gin.Context) {
-	if err := h.agent.Stop(); err != nil {
+	if err := agent.Stop(); err != nil {
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
 	}
-	renderJSON(c, http.StatusOK, h.agent.peers)
+	renderJSON(c, http.StatusOK, agent.peers)
 }
 
 func (h *HTTPTransport) jobToggleHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := agent.Store.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -506,7 +433,7 @@ func (h *HTTPTransport) jobToggleHandler(c *gin.Context) {
 	job.Disabled = !job.Disabled
 
 	// Call gRPC SetJob
-	if err := h.agent.GRPCClient.SetJob(job); err != nil {
+	if err := agent.GRPCClient.SetJob(job); err != nil {
 		_ = c.AbortWithError(http.StatusUnprocessableEntity, err)
 		return
 	}
@@ -518,7 +445,7 @@ func (h *HTTPTransport) jobToggleHandler(c *gin.Context) {
 func (h *HTTPTransport) busyHandler(c *gin.Context) {
 	executions := []*Execution{}
 
-	exs, err := h.agent.GetActiveExecutions()
+	exs, err := agent.GetActiveExecutions()
 	if err != nil {
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
 		return

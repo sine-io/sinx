@@ -30,7 +30,7 @@ var leaveCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		gc := sxagent.NewGRPCClient(nil, nil, zlog.Logger) // TODO: log parameter needed?
+		gc := sxagent.NewGRPCClient(nil, nil)
 
 		if err := gc.Leave(ip); err != nil {
 			return err

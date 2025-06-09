@@ -60,7 +60,7 @@ func (grpcs *GRPCServer) Serve(lis net.Listener) error {
 	grpcServer := grpc.NewServer()
 	sxproto.RegisterDkronServer(grpcServer, grpcs)
 
-	as := NewGRPCAgentServer(grpcs.agent, grpcs.logger)
+	as := NewGRPCAgentServer(grpcs.agent)
 	sxproto.RegisterAgentServer(grpcServer, as)
 	go grpcServer.Serve(lis)
 
@@ -94,7 +94,7 @@ func (grpcs *GRPCServer) SetJob(ctx context.Context, setJobReq *sxproto.SetJobRe
 	}
 
 	// If everything is ok, add the job to the scheduler
-	job := NewJobFromProto(setJobReq.Job, grpcs.logger)
+	job := NewJobFromProto(setJobReq.Job)
 	job.Agent = grpcs.agent
 	if err := grpcs.agent.sched.AddJob(job); err != nil {
 		return nil, err

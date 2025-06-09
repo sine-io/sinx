@@ -1,4 +1,4 @@
-package agent
+package config
 
 var (
 	// Name store the name of this software

@@ -64,53 +64,6 @@ It also runs a web UI.`,
 	},
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() error {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.SetConfigName("sinx")        // name of config file (without extension)
-		viper.AddConfigPath("/etc/sinx")   // call multiple times to add many search paths
-		viper.AddConfigPath("$HOME/.sinx") // call multiple times to add many search paths
-		viper.AddConfigPath("./config")    // call multiple times to add many search paths
-	}
-
-	viper.SetEnvPrefix("sinx")
-	replacer := strings.NewReplacer("-", "_")
-	viper.SetEnvKeyReplacer(replacer)
-	viper.AutomaticEnv() // read in environment variables that match
-
-	err := viper.ReadInConfig() // Find and read the config file
-	if err != nil {
-		return fmt.Errorf("config: Error reading config file: %s", err.Error())
-	} else {
-		if rootCmd.Flags().Changed("log-level") {
-			// If the log level is set via CLI, override the config value
-			viper.Set("log-level", logLevel)
-		}
-	}
-
-	if err := viper.Unmarshal(cfg); err != nil {
-		return fmt.Errorf("config: Error unmarshalling config: %s", err.Error())
-	}
-
-	cliTags := viper.GetStringSlice("tag")
-	var tags map[string]string
-
-	if len(cliTags) > 0 {
-		tags, err = UnmarshalTags(cliTags)
-		if err != nil {
-			return fmt.Errorf("config: Error unmarshalling cli tags: %s", err.Error())
-		}
-	} else {
-		tags = viper.GetStringMapString("tags")
-	}
-	cfg.Tags = tags
-
-	return nil
-}
-
 func agentRun(args ...string) error {
 	// sine, 2025.5.30
 	// This log statement helps avoid compiler warnings about unused parameters
@@ -133,13 +86,13 @@ func agentRun(args ...string) error {
 	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
 	// set agent logger
 	agentLogger := &zlog.Logger // use pointer to avoid value copy issues
-	agent.SetLogger(agentLogger.Hook(
+	agent.Logger = agentLogger.Hook(
 		zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
 			e.Str("node", cfg.NodeName) // Add node name to each log event
 		}),
-	))
+	)
 
-	if err := agent.Start(); err != nil {
+	if err := sxagent.StartAgent(agent); err != nil {
 		return err
 	}
 
@@ -184,7 +137,7 @@ WAIT:
 	// Attempt a graceful leave
 	zlog.Info().Msg("agent: Gracefully shutting down agent...")
 	go func() {
-		if err := agent.Stop(); err != nil {
+		if err := sxagent.StopAgent(agent); err != nil {
 			zlog.Error().Err(err).Msg("unable to stop agent")
 			return
 		}

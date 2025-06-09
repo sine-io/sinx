@@ -1,4 +1,4 @@
-package agent
+package job
 
 import (
 	"errors"
@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sxextcron "github.com/sine-io/sinx/extcron"
+	sxagent "github.com/sine-io/sinx/internal/agent"
 	sxntime "github.com/sine-io/sinx/ntime"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
@@ -100,7 +100,7 @@ type Job struct {
 	Metadata map[string]string `json:"metadata"`
 
 	// Pointer to the calling agent.
-	Agent *Agent `json:"-"`
+	Agent *sxagent.Agent `json:"-"`
 
 	// Number of times to retry a job that failed an execution.
 	Retries uint `json:"retries"`
@@ -137,12 +137,10 @@ type Job struct {
 
 	// The job will not be executed after this time.
 	ExpiresAt sxntime.NullableTime `json:"expires_at"`
-
-	logger zerolog.Logger
 }
 
 // NewJobFromProto create a new Job from a PB Job struct
-func NewJobFromProto(in *sxproto.Job, logger zerolog.Logger) *Job {
+func NewJobFromProto(in *sxproto.Job) *Job {
 	job := &Job{
 		ID:             in.Name,
 		Name:           in.Name,
@@ -165,7 +163,6 @@ func NewJobFromProto(in *sxproto.Job, logger zerolog.Logger) *Job {
 		Metadata:       in.Metadata,
 		Next:           in.GetNext().AsTime(),
 		Ephemeral:      in.Ephemeral,
-		logger:         logger,
 	}
 	if in.GetLastSuccess().GetHasValue() {
 		t := in.GetLastSuccess().GetTime().AsTime()
@@ -245,34 +242,6 @@ func (j *Job) ToProto() *sxproto.Job {
 		Next:           next,
 		Ephemeral:      j.Ephemeral,
 		ExpiresAt:      expiresAt,
-	}
-}
-
-// Run the job
-func (j *Job) Run() {
-	// As this function should comply with the Job interface of the cron package we will use
-	// the agent property on execution, this is why it need to check if it's set and otherwise fail.
-	if j.Agent == nil {
-		j.logger.Fatal().Msg("job: agent not set")
-	}
-
-	// Check if it's runnable
-	if j.isRunnable(j.logger) {
-		j.logger.Debug().
-			Str("job", j.Name).
-			Str("schedule", j.Schedule).
-			Msg("job: Running job")
-
-		cronInspect.Set(j.Name, j)
-
-		// Simple execution wrapper
-		ex := NewExecution(j.Name)
-
-		if _, err := j.Agent.Run(j.Name, ex); err != nil {
-			j.logger.Error().
-				Err(err).
-				Msg("job: Error running job")
-		}
 	}
 }
 
@@ -362,6 +331,7 @@ func (j *Job) scheduleHash() string {
 
 		partIndex++
 	}
+
 	return strings.Join(parts, " ")
 }
 
@@ -378,9 +348,9 @@ func (j *Job) GetNext() (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func (j *Job) isRunnable(logger zerolog.Logger) bool {
+func (j *Job) isRunnable() bool {
 	if j.Disabled || (j.ExpiresAt.HasValue() && time.Now().After(j.ExpiresAt.Get())) {
-		logger.Debug().
+		j.Agent.Logger.Debug().
 			Str("job", j.Name).
 			Msg("job: Skipping execution because job is disabled or expired")
 
@@ -388,7 +358,7 @@ func (j *Job) isRunnable(logger zerolog.Logger) bool {
 	}
 
 	if j.Agent.GlobalLock {
-		logger.Warn().
+		j.Agent.Logger.Warn().
 			Str("job", j.Name).
 			Msg("job: Skipping execution because active global lock")
 
@@ -398,7 +368,7 @@ func (j *Job) isRunnable(logger zerolog.Logger) bool {
 	if j.Concurrency == ConcurrencyForbid {
 		exs, err := j.Agent.GetActiveExecutions()
 		if err != nil {
-			logger.Error().
+			j.Agent.Logger.Error().
 				Err(err).
 				Msg("job: Error querying for running executions")
 
@@ -407,7 +377,7 @@ func (j *Job) isRunnable(logger zerolog.Logger) bool {
 
 		for _, e := range exs {
 			if e.JobName == j.Name {
-				logger.Info().
+				j.Agent.Logger.Info().
 					Str("job", j.Name).
 					Str("concurrency", j.Concurrency).
 					Str("job_status", j.Status).
@@ -471,8 +441,8 @@ func isSlug(candidate string) (bool, string) {
 	return whyNot == "", whyNot
 }
 
-// generate Job Tree
-func generateJobTree(jobs []*Job) ([]*Job, error) {
+// GenerateJobTree generate Job Tree
+func GenerateJobTree(jobs []*Job) ([]*Job, error) {
 	length := len(jobs)
 	j := 0
 	for i := 0; i < length; i++ {

@@ -137,7 +137,7 @@ func (s *Store) SetJob(job *Job, copyDependentJobs bool) error {
 			return err
 		}
 
-		ej = NewJobFromProto(&pbej, s.logger)
+		ej = NewJobFromProto(&pbej)
 
 		if ej.Name != "" {
 			// When the job runs, these status vars are updated
@@ -332,8 +332,7 @@ func (s *Store) GetJobs(options *JobOptions) ([]*Job, error) {
 				return false
 			}
 		}
-		job := NewJobFromProto(&pbj, s.logger)
-		job.logger = s.logger
+		job := NewJobFromProto(&pbj)
 
 		if options == nil ||
 			(options.Metadata == nil || len(options.Metadata) == 0 || s.jobHasMetadata(job, options.Metadata)) &&
@@ -368,8 +367,7 @@ func (s *Store) GetJob(name string, options *JobOptions) (*Job, error) {
 		return nil, err
 	}
 
-	job := NewJobFromProto(&pbj, s.logger)
-	job.logger = s.logger
+	job := NewJobFromProto(&pbj)
 
 	return job, nil
 }
@@ -412,7 +410,7 @@ func (s *Store) DeleteJob(name string) (*Job, error) {
 		if len(pbj.DependentJobs) > 0 {
 			return ErrDependentJobs
 		}
-		job = NewJobFromProto(&pbj, s.logger)
+		job = NewJobFromProto(&pbj)
 
 		if err := s.deleteExecutionsTxFunc(name)(tx); err != nil {
 			return err

@@ -33,7 +33,7 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 		targetNodes = a.getTargetNodes(job.Tags, defaultSelector)
 	} else {
 		// In case of retrying, find the node or return with an error
-		for _, m := range a.serf.Members() {
+		for _, m := range a.Serf.Members() {
 			if ex.NodeName == m.Name {
 				if m.Status == serf.StatusAlive {
 					targetNodes = []Node{m}
@@ -49,7 +49,7 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 	if len(targetNodes) < 1 {
 		return nil, fmt.Errorf("no target nodes found to run job %s", ex.JobName)
 	}
-	a.logger.Debug().Any("nodes", targetNodes).Msg("agent: Filtered nodes to run")
+	a.Logger.Debug().Any("nodes", targetNodes).Msg("agent: Filtered nodes to run")
 
 	var wg sync.WaitGroup
 	for _, v := range targetNodes {
@@ -64,11 +64,11 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 		go func(node string, wg *sync.WaitGroup) {
 			defer wg.Done()
 
-			a.logger.Info().Str("jog_name", job.Name).Str("node", node).Msg("agent: Calling AgentRun")
+			a.Logger.Info().Str("jog_name", job.Name).Str("node", node).Msg("agent: Calling AgentRun")
 
 			err := a.GRPCClient.AgentRun(node, job.ToProto(), ex.ToProto())
 			if err != nil {
-				a.logger.Error().Str("job_name", job.Name).Str("node", node).Err(err).Msg("agent: Error calling AgentRun")
+				a.Logger.Error().Str("job_name", job.Name).Str("node", node).Err(err).Msg("agent: Error calling AgentRun")
 			}
 		}(addr, &wg)
 	}

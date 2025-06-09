@@ -72,6 +72,17 @@ func Execute() {
 }
 
 // initLogger init zerolog.Logger
+// Notice, because zerolog.Logger is a struct, not a pointer.
+// 1. basic data types and structs: during assignment, the value is copied, so if you want to modify the original value, you need to use a pointer.
+// 2. slices, maps, channels, interfaces, functions: during assignment, the reference is copied, so if you want to modify the original value, you can use the value directly.
+// 3. pointers: during assignment, the pointer is copied, so if you want to modify the original value, you can use the pointer directly.
+// In one sentence, we should use a logger pointer to crate agent logger, so we can use the initialization which initialized in this function.
+// Like this:
+//
+//	agentLogger := &zlog.Logger
+//	agentLogger.Hook()
+//
+// `agentLogger.Hook()` will return a new logger with the same configuration as the global logger, but we can add hooks to it.
 func initLogger() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano

@@ -6,7 +6,6 @@ import (
 
 	"github.com/armon/circbuf"
 	metrics "github.com/armon/go-metrics"
-	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sxproto "github.com/sine-io/sinx/types"
@@ -36,15 +35,13 @@ func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 // GRPCAgentServer is the local implementation of the gRPC server interface.
 type GRPCAgentServer struct {
 	sxproto.AgentServer
-	agent  *Agent
-	logger zerolog.Logger
+	agent *Agent
 }
 
 // NewGRPCAgentServer creates and returns an instance of a AgentServer implementation
-func NewGRPCAgentServer(agent *Agent, logger zerolog.Logger) sxproto.AgentServer {
+func NewGRPCAgentServer(agent *Agent) sxproto.AgentServer {
 	return &GRPCAgentServer{
-		agent:  agent,
-		logger: logger,
+		agent: agent,
 	}
 }
 
@@ -56,7 +53,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 	job := req.Job
 	execution := req.Execution
 
-	as.logger.Info().Str("job", job.Name).Msg("grpc_agent: Starting job")
+	as.agent.logger.Info().Str("job", job.Name).Msg("grpc_agent: Starting job")
 
 	output, _ := circbuf.NewBuffer(maxBufSize)
 
@@ -81,7 +78,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 
 	// Check if executor exists
 	if executor, ok := as.agent.ExecutorPlugins[jex]; ok {
-		as.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
+		as.agent.logger.Debug().Str("plugin", jex).Msg("grpc_agent: calling executor plugin")
 
 		runningExecutions.Store(execution.GetGroup(), execution)
 		out, err := executor.Execute(&sxproto.ExecuteRequest{
@@ -96,7 +93,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 			err = errors.New(out.Error)
 		}
 		if err != nil {
-			as.logger.Error().Err(err).Str("job", job.Name).Any("plugin", executor).Msg(
+			as.agent.logger.Error().Err(err).Str("job", job.Name).Any("plugin", executor).Msg(
 				"grpc_agent: command error output")
 
 			success = false
@@ -109,7 +106,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 			_, _ = output.Write(out.Output)
 		}
 	} else {
-		as.logger.Error().Str("executor", jex).Msg("grpc_agent: Specified executor is not present")
+		as.agent.logger.Error().Str("executor", jex).Msg("grpc_agent: Specified executor is not present")
 		_, _ = output.Write([]byte("grpc_agent: Specified executor is not present"))
 	}
 
@@ -124,7 +121,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 		Execution: execution,
 	}); err != nil {
 		// In case of error means that maybe the server is gone so fallback to ExecutionDone
-		as.logger.Error().Err(err).Str("job", job.Name).Msg(
+		as.agent.logger.Error().Err(err).Str("job", job.Name).Msg(
 			"grpc_agent: error sending the final execution, falling back to ExecutionDone")
 
 		rpcServer, err := as.agent.CheckAndSelectServer()

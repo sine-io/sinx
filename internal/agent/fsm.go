@@ -45,8 +45,8 @@ type raftFSM struct {
 	logger      zerolog.Logger
 }
 
-// NewFSM is used to construct a new FSM with a blank state
-func newFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *raftFSM {
+// newRaftFSM is used to construct a new FSM with a blank state
+func newRaftFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *raftFSM {
 	return &raftFSM{
 		store:       store,
 		proAppliers: logAppliers,
@@ -85,7 +85,7 @@ func (d *raftFSM) applySetJob(buf []byte) any {
 	if err := proto.Unmarshal(buf, &pj); err != nil {
 		return err
 	}
-	job := NewJobFromProto(&pj, d.logger)
+	job := NewJobFromProto(&pj)
 	if err := d.store.SetJob(job, false); err != nil {
 		return err
 	}

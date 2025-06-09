@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -16,12 +15,12 @@ import (
 func (a *Agent) retryJoinLAN() {
 	r := &retryJoiner{
 		cluster:     "LAN",
-		addrs:       a.config.RetryJoinLAN,
-		maxAttempts: a.config.RetryJoinMaxAttemptsLAN,
-		interval:    a.config.RetryJoinIntervalLAN,
+		addrs:       a.Config.RetryJoinLAN,
+		maxAttempts: a.Config.RetryJoinMaxAttemptsLAN,
+		interval:    a.Config.RetryJoinIntervalLAN,
 		join:        a.JoinLAN,
 	}
-	if err := r.retryJoin(a.logger); err != nil {
+	if err := r.retryJoin(a.Logger); err != nil {
 		a.retryJoinCh <- err
 	}
 }
@@ -78,7 +77,12 @@ func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
 		for _, addr := range r.addrs {
 			switch {
 			case strings.Contains(addr, "provider="):
-				servers, err := disco.Addrs(addr, log.New(logger, "", log.LstdFlags|log.Lshortfile)) // TODO: zerolog.Logger implements io.Writer, does it work?
+				discoLogger := &logger
+				servers, err := disco.Addrs(
+					addr,
+					// golog.New(discoLogger, "", golog.LstdFlags|golog.Lshortfile),
+					customGologWithZerolog(*discoLogger),
+				)
 				if err != nil {
 					logger.Error().Err(err).Str("cluster", r.cluster).Msg("agent: Error Joining")
 				} else {
