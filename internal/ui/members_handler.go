@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-uuid"
+
 	sxproto "github.com/sine-io/sinx/types"
 )
 

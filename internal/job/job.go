@@ -8,27 +8,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/tidwall/buntdb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sxextcron "github.com/sine-io/sinx/extcron"
-	sxagent "github.com/sine-io/sinx/internal/agent"
 	sxntime "github.com/sine-io/sinx/ntime"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
 const (
-	// StatusNotSet is the initial job status.
-	StatusNotSet = ""
-	// StatusSuccess is status of a job whose last run was a success.
-	StatusSuccess = "success"
-	// StatusRunning is status of a job whose last run has not finished.
-	StatusRunning = "running"
-	// StatusFailed is status of a job whose last run was not successful on any nodes.
-	StatusFailed = "failed"
-	// StatusPartiallyFailed is status of a job whose last run was successful on only some nodes.
-	StatusPartiallyFailed = "partially_failed"
+	// JobStatusNotSet is the initial job status.
+	JobStatusNotSet = ""
+	// JobStatusSuccess is status of a job whose last run was a success.
+	JobStatusSuccess = "success"
+	// JobStatusRunning is status of a job whose last run has not finished.
+	JobStatusRunning = "running"
+	// JobStatusFailed is status of a job whose last run was not successful on any nodes.
+	JobStatusFailed = "failed"
+	// JobStatusPartiallyFailed is status of a job whose last run was successful on only some nodes.
+	JobStatusPartiallyFailed = "partially_failed"
 
 	// ConcurrencyAllow allows a job to execute concurrency.
 	ConcurrencyAllow = "allow"
@@ -100,7 +100,7 @@ type Job struct {
 	Metadata map[string]string `json:"metadata"`
 
 	// Pointer to the calling agent.
-	Agent *sxagent.Agent `json:"-"`
+	// Agent *sxagent.Agent `json:"-"`
 
 	// Number of times to retry a job that failed an execution.
 	Retries uint `json:"retries"`
@@ -137,6 +137,11 @@ type Job struct {
 
 	// The job will not be executed after this time.
 	ExpiresAt sxntime.NullableTime `json:"expires_at"`
+
+	// TODO:
+	executor JobExecutor    `json:"-"`
+	logger   zerolog.Logger `json:"-"`
+	storage  JobStorage     `json:"-"`
 }
 
 // NewJobFromProto create a new Job from a PB Job struct
@@ -253,7 +258,7 @@ func (j *Job) String() string {
 // GetParent returns the parent job of a job
 func (j *Job) GetParent(store *Store) (*Job, error) {
 	if j.Name == j.ParentJob {
-		return nil, ErrSameParent
+		return nil, sxdefiErrSameParent
 	}
 
 	if j.ParentJob == "" {
@@ -350,7 +355,7 @@ func (j *Job) GetNext() (time.Time, error) {
 
 func (j *Job) isRunnable() bool {
 	if j.Disabled || (j.ExpiresAt.HasValue() && time.Now().After(j.ExpiresAt.Get())) {
-		j.Agent.Logger.Debug().
+		j.logger.Debug().
 			Str("job", j.Name).
 			Msg("job: Skipping execution because job is disabled or expired")
 
@@ -358,7 +363,7 @@ func (j *Job) isRunnable() bool {
 	}
 
 	if j.Agent.GlobalLock {
-		j.Agent.Logger.Warn().
+		j.logger.Warn().
 			Str("job", j.Name).
 			Msg("job: Skipping execution because active global lock")
 
@@ -368,7 +373,7 @@ func (j *Job) isRunnable() bool {
 	if j.Concurrency == ConcurrencyForbid {
 		exs, err := j.Agent.GetActiveExecutions()
 		if err != nil {
-			j.Agent.Logger.Error().
+			j.logger.Error().
 				Err(err).
 				Msg("job: Error querying for running executions")
 
@@ -377,7 +382,7 @@ func (j *Job) isRunnable() bool {
 
 		for _, e := range exs {
 			if e.JobName == j.Name {
-				j.Agent.Logger.Info().
+				j.logger.Info().
 					Str("job", j.Name).
 					Str("concurrency", j.Concurrency).
 					Str("job_status", j.Status).

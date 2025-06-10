@@ -14,23 +14,6 @@ import (
 	sxproto "github.com/sine-io/sinx/types"
 )
 
-// DkronGRPCClient defines the interface that any gRPC client for
-// dkron should implement.
-type DkronGRPCClient interface {
-	Connect(string) (*grpc.ClientConn, error)
-	ExecutionDone(string, *Execution) error
-	GetJob(string, string) (*Job, error)
-	SetJob(*Job) error
-	DeleteJob(string) (*Job, error)
-	Leave(string) error
-	RunJob(string) (*Job, error)
-	RaftGetConfiguration(string) (*sxproto.RaftGetConfigurationResponse, error)
-	RaftRemovePeerByID(string, string) error
-	GetActiveExecutions(string) ([]*sxproto.Execution, error)
-	SetExecution(execution *sxproto.Execution) error
-	AgentRun(addr string, job *sxproto.Job, execution *sxproto.Execution) error
-}
-
 // GRPCClient is the local implementation of the DkronGRPCClient interface.
 type GRPCClient struct {
 	dialOpt []grpc.DialOption

@@ -33,12 +33,6 @@ var (
 	ErrBrokenStream = errors.New("grpc: Error on execution streaming, agent connection was abruptly terminated")
 )
 
-// DkronGRPCServer defines the basics that a gRPC server should implement.
-type DkronGRPCServer interface {
-	sxproto.DkronServer
-	Serve(net.Listener) error
-}
-
 // GRPCServer is the local implementation of the gRPC server interface.
 type GRPCServer struct {
 	sxproto.DkronServer
@@ -46,7 +40,7 @@ type GRPCServer struct {
 }
 
 // NewGRPCServer creates and returns an instance of a DkronGRPCServer implementation
-func NewGRPCServer(agent *Agent) DkronGRPCServer {
+func NewGRPCServer(agent *Agent) *GRPCServer {
 	return &GRPCServer{
 		agent: agent,
 	}
@@ -62,18 +56,6 @@ func (grpcs *GRPCServer) Serve(lis net.Listener) error {
 	go grpcServer.Serve(lis)
 
 	return nil
-}
-
-// Encode is used to encode a Protoc object with type prefix
-func Encode(t MessageType, msg interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteByte(uint8(t))
-	m, err := proto.Marshal(msg.(proto.Message))
-	if err != nil {
-		return nil, err
-	}
-	_, err = buf.Write(m)
-	return buf.Bytes(), err
 }
 
 // SetJob broadcast a state change to the cluster members that will store the job.
@@ -436,4 +418,16 @@ func (grpcs *GRPCServer) SetExecution(ctx context.Context, execution *sxproto.Ex
 	}
 
 	return new(emptypb.Empty), nil
+}
+
+// Encode is used to encode a Protoc object with type prefix
+func Encode(t MessageType, msg interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte(uint8(t))
+	m, err := proto.Marshal(msg.(proto.Message))
+	if err != nil {
+		return nil, err
+	}
+	_, err = buf.Write(m)
+	return buf.Bytes(), err
 }

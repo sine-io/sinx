@@ -16,11 +16,13 @@ import (
 
 	sxflagset "github.com/sine-io/sinx/cmd/flagset"
 	sxagent "github.com/sine-io/sinx/internal/agent"
+	sxconfig "github.com/sine-io/sinx/internal/config"
 	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 var (
 	cfgFile string
+	cfg     = sxconfig.DefaultConfig()
 
 	ShutdownCh chan (struct{})
 	agent      *sxagent.Agent
@@ -72,7 +74,6 @@ func agentRun(args ...string) error {
 
 	// Make sure we clean up any managed plugins at the end of this
 	p := &sxplugin.Plugins{
-		LogLevel: cfg.LogLevel,
 		NodeName: cfg.NodeName,
 	}
 	if err := p.DiscoverPlugins(); err != nil {

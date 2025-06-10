@@ -42,7 +42,7 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 	if err == buntdb.ErrNotFound {
 		executions = make([]*Execution, 0)
 	} else if err != nil {
-		h.agent.Logger.Error().Err(err)
+		h.logger.Error().Err(err)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	)
 
 	if err != nil {
-		h.agent.Logger.Error().Err(err)
+		h.logger.Error().Err(err)
 		return
 	}
 

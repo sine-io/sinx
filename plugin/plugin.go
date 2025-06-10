@@ -29,8 +29,8 @@ var embedPlugins = []string{"shell", "http"}
 type Plugins struct {
 	Processors map[string]Processor
 	Executors  map[string]Executor
-	LogLevel   string
-	NodeName   string
+	// LogLevel   string
+	NodeName string
 }
 
 // DiscoverPlugins located on disk

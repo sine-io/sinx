@@ -1,4 +1,4 @@
-package agent
+package log
 
 import (
 	"encoding/json"
@@ -7,12 +7,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// customHclogWithZerolog creates a new hclog.Logger that uses zerolog for output.
+// HclogWrapper creates a new hclog.Logger that uses zerolog for output.
 // It parses the log message as JSON and adds the fields to the zerolog event.
 // The log level is set based on the provided level string.
 // The logger is configured to output in JSON format.
 // The logger name is set to the provided name.
-func customHclogWithZerolog(name, level string, logger zerolog.Logger) hclog.Logger {
+func HclogWrapper(name, level string, logger *zerolog.Logger) hclog.Logger {
 	return hclog.New(&hclog.LoggerOptions{
 		Name:  name,
 		Level: hclog.LevelFromString(level),

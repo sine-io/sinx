@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 // DefaultBindPort is the default port that dkron will use for Serf communication
@@ -20,7 +21,9 @@ const (
 func DefaultConfig() *Config {
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Panic(err)
+		zlog.Panic().Err(err).Send() // TODO: will call os.Exit(1)? if called, hostname will not be 'anonymous'
+	} else {
+		hostname = "anonymous"
 	}
 
 	tags := map[string]string{}
@@ -29,7 +32,6 @@ func DefaultConfig() *Config {
 		// ------ configuration for node ------
 		NodeName:   hostname,
 		Tags:       tags,
-		LogLevel:   "info",
 		Datacenter: "dc1",
 		Region:     "global",
 		UI:         true,

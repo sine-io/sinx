@@ -34,12 +34,6 @@ type Config struct {
 	Profile string
 	// ------ end ------
 
-	// ------ configuration for log ------
-	// LogLevel is the log verbosity level used.
-	// It can be (debug|info|warn|error|fatal|panic).
-	LogLevel string `mapstructure:"log-level"`
-	// ------ end ------
-
 	// ------ configuration for network ------
 	// BindAddr is the address on which all of services will
 	// be bound. If not specified, this defaults to the first private ip address.

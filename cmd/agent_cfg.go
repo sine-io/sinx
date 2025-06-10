@@ -27,11 +27,6 @@ func initConfig() error {
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {
 		return fmt.Errorf("config: Error reading config file: %s", err.Error())
-	} else {
-		if rootCmd.Flags().Changed("log-level") {
-			// If the log level is set via CLI, override the config value
-			viper.Set("log-level", logLevel)
-		}
 	}
 
 	if err := viper.Unmarshal(cfg); err != nil {

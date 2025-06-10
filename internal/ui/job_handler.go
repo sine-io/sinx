@@ -6,8 +6,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	sxjob "github.com/sine-io/sinx/internal/job"
 	status "google.golang.org/grpc/status"
+
+	sxjob "github.com/sine-io/sinx/internal/job"
 )
 
 func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
@@ -15,7 +16,7 @@ func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 
 	job, err := h.agent.Store.GetJob(jobName, nil)
 	if err != nil {
-		h.agent.Logger.Error().Err(err)
+		h.logger.Error().Err(err)
 	}
 	if job == nil {
 		c.AbortWithStatus(http.StatusNotFound)
@@ -93,7 +94,7 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		h.agent.Logger.Error().Err(err).Msg("api: Unable to get jobs, store not reachable.")
+		h.logger.Error().Err(err).Msg("api: Unable to get jobs, store not reachable.")
 		return
 	}
 
@@ -132,7 +133,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 		// Parse values from JSON
 		if err := c.BindJSON(&job); err != nil {
 			_, _ = c.Writer.WriteString(fmt.Sprintf("Unable to parse payload: %s.", err))
-			h.agent.Logger.Error().Err(err)
+			h.logger.Error().Err(err)
 			return
 		}
 		// Get the owner from the context, if it exists
@@ -166,7 +167,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	if _, exists := c.GetQuery("runoncreate"); exists {
 		go func() {
 			if _, err := h.agent.GRPCClient.RunJob(job.Name); err != nil {
-				h.agent.Logger.Error().Err(err).Msg("api: Unable to run job.")
+				h.logger.Error().Err(err).Msg("api: Unable to run job.")
 			}
 		}()
 	}
