@@ -85,7 +85,7 @@ message ACLTokenListResponse {
 }
 
 // DkronPro is the DkronPro service definition
-service DkronPro {
+service SinxPro {
     rpc ACLPolicyUpsert (ACLPolicyUpsertRequest) returns (ACLPolicyUpsertResponse);
     rpc ACLPolicyDelete (ACLPolicyDeleteRequest) returns (ACLPolicyDeleteResponse);
     rpc ACLPolicyInfo (ACLPolicyInfoRequest) returns (ACLPolicyInfoResponse);

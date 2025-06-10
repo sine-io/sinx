@@ -36,22 +36,22 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 
 	assets, err := fs.Sub(uiDist, "ui-dist")
 	if err != nil {
-		h.agent.Logger.Fatal().Err(err)
+		h.logger.Fatal().Err(err)
 	}
 
 	fp, err := assets.Open("index.html")
 	if err != nil {
-		h.agent.Logger.Fatal().Err(err)
+		h.logger.Fatal().Err(err)
 	}
 
 	indexText, err := io.ReadAll(fp)
 	if err != nil {
-		h.agent.Logger.Fatal().Err(err)
+		h.logger.Fatal().Err(err)
 	}
 
 	templ, err := template.New("index.html").Parse(string(indexText))
 	if err != nil {
-		h.agent.Logger.Fatal().Err(err)
+		h.logger.Fatal().Err(err)
 	}
 
 	h.Engine.SetHTMLTemplate(templ)
@@ -65,7 +65,7 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 		} else {
 			jobs, err := h.agent.Store.GetJobs(nil)
 			if err != nil {
-				h.agent.Logger.Error().Err(err)
+				h.logger.Error().Err(err)
 			}
 			var (
 				totalJobs                                   = len(jobs)
@@ -83,7 +83,7 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 			l, err := h.agent.LeaderMember()
 			ln := "no leader"
 			if err != nil {
-				h.agent.Logger.Error().Err(err)
+				h.logger.Error().Err(err)
 			} else {
 				ln = l.Name
 			}

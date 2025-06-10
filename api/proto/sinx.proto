@@ -133,7 +133,7 @@ message GetActiveExecutionsResponse {
   repeated Execution executions = 1;
 }
 
-service SinX {
+service Sinx {
   rpc GetJob (GetJobRequest) returns (GetJobResponse);
   rpc ExecutionDone (ExecutionDoneRequest) returns (ExecutionDoneResponse);
   rpc Leave (google.protobuf.Empty) returns (google.protobuf.Empty);

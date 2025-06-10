@@ -24,6 +24,8 @@ import (
 	"github.com/rs/zerolog"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxdefine "github.com/sine-io/sinx/internal/definition"
+	sxlog "github.com/sine-io/sinx/log"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
 )
@@ -48,12 +50,6 @@ var (
 	runningExecutions sync.Map
 )
 
-type RaftStore interface {
-	raft.StableStore
-	raft.LogStore
-	Close() error
-}
-
 // Node is a shorter, more descriptive name for serf.Member
 type Node = serf.Member
 
@@ -66,16 +62,16 @@ type Agent struct {
 	ExecutorPlugins map[string]sxplugin.Executor
 
 	// HTTPTransport is a swappable interface for the HTTP server interface
-	// HTTPTransport Transport
+	HTTPTransport sxdefine.Transport
 
-	// Store interface to set the storage engine
-	Store Storage
+	// JobDB interface to set the job db engine
+	JobDB sxdefine.JobDB
 
 	// GRPCServer interface for setting the GRPC server
-	GRPCServer DkronGRPCServer
+	GRPCServer sxdefine.SinxGRPCServer
 
 	// GRPCClient interface for setting the GRPC client
-	GRPCClient DkronGRPCClient
+	GRPCClient sxdefine.SinxGRPCClient
 
 	// TLSConfig allows setting a TLS config for transport
 	TLSConfig *tls.Config
@@ -99,7 +95,7 @@ type Agent struct {
 	// raftLayer provides network layering of the raft RPC along with
 	// the SinX gRPC transport layer.
 	raftLayer     *RaftLayer
-	raftStore     RaftStore
+	raftStore     sxdefine.RaftStore
 	raftInmem     *raft.InmemStore
 	raftTransport *raft.NetworkTransport
 
@@ -120,9 +116,17 @@ type Agent struct {
 	listener net.Listener
 
 	// logger is the log entry to use for all logging calls
-	Logger zerolog.Logger
+	logger zerolog.Logger
 	// config is the configuration to use for the agent
-	Config *sxconfig.Config
+	config *sxconfig.Config
+}
+
+func (a *Agent) SetLogger(l *zerolog.Logger) {
+	a.logger = l.Hook(
+		zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+			e.Str("node", a.config.NodeName) // Add node name to each log event
+		}),
+	)
 }
 
 // ProcessorFactory is a function type that creates a new instance
@@ -139,7 +143,7 @@ type Plugins struct {
 // and running a SinX instance.
 func NewAgent(config *sxconfig.Config, options ...Options) *Agent {
 	agent := &Agent{
-		Config:       config,
+		config:       config,
 		retryJoinCh:  make(chan error),
 		serverLookup: NewServerLookup(),
 	}
@@ -173,57 +177,55 @@ func (a *Agent) UpdateTags(tags map[string]string) {
 			tags[tagName] = val
 		}
 	}
-	tags["dc"] = a.Config.Datacenter
-	tags["region"] = a.Config.Region
+	tags["dc"] = a.config.Datacenter
+	tags["region"] = a.config.Region
 
 	// Set new collection of tags
 	err := a.Serf.SetTags(tags)
 	if err != nil {
-		a.Logger.Warn().Msgf("Setting tags unsuccessful: %s.", err.Error())
+		a.logger.Warn().Msgf("Setting tags unsuccessful: %s.", err.Error())
 	}
 }
 
 func (a *Agent) setupRaft() error {
-	if a.Config.BootstrapExpect > 0 {
-		if a.Config.BootstrapExpect == 1 {
-			a.Config.Bootstrap = true
+	if a.config.BootstrapExpect > 0 {
+		if a.config.BootstrapExpect == 1 {
+			a.config.Bootstrap = true
 		}
 	}
 
-	raftNetworkLogger := &a.Logger
 	transConfig := &raft.NetworkTransportConfig{
 		Stream:                a.raftLayer,
 		MaxPool:               3,
 		Timeout:               raftTimeout,
 		ServerAddressProvider: a.serverLookup,
 		// set raft network logger to zerolog
-		Logger: customHclogWithZerolog("raft-net", a.Logger.GetLevel().String(), *raftNetworkLogger),
+		Logger: sxlog.HclogWrapper("raft-net", a.logger.GetLevel().String(), &a.logger),
 	}
 	transport := raft.NewNetworkTransportWithConfig(transConfig)
 	a.raftTransport = transport
 
 	raftCfg := raft.DefaultConfig()
 	// set raft logger to zerolog
-	raftLogger := &a.Logger
-	raftCfg.Logger = customHclogWithZerolog("raft", a.Logger.GetLevel().String(), *raftLogger)
+	raftCfg.Logger = sxlog.HclogWrapper("raft", a.logger.GetLevel().String(), &a.logger)
 
 	// Raft performance
-	raftMultiplier := a.Config.RaftMultiplier
+	raftMultiplier := a.config.RaftMultiplier
 	if raftMultiplier < 1 || raftMultiplier > 10 {
 		return fmt.Errorf("raft-multiplier cannot be %d. Must be between 1 and 10", raftMultiplier)
 	}
 	raftCfg.HeartbeatTimeout = raftCfg.HeartbeatTimeout * time.Duration(raftMultiplier)
 	raftCfg.ElectionTimeout = raftCfg.ElectionTimeout * time.Duration(raftMultiplier)
-	raftCfg.LeaderLeaseTimeout = raftCfg.LeaderLeaseTimeout * time.Duration(a.Config.RaftMultiplier)
+	raftCfg.LeaderLeaseTimeout = raftCfg.LeaderLeaseTimeout * time.Duration(a.config.RaftMultiplier)
 
-	raftCfg.LocalID = raft.ServerID(a.Config.NodeName)
+	raftCfg.LocalID = raft.ServerID(a.config.NodeName)
 
 	// Build an all in-memory setup for dev mode, otherwise prepare a full
 	// disk-based setup.
 	var logStore raft.LogStore
 	var stableStore raft.StableStore
 	var snapshots raft.SnapshotStore
-	if a.Config.DevMode {
+	if a.config.DevMode {
 		store := raft.NewInmemStore()
 		a.raftInmem = store
 		stableStore = store
@@ -234,10 +236,9 @@ func (a *Agent) setupRaft() error {
 		// Create the snapshot store. This allows the Raft to truncate the log to
 		// mitigate the issue of having an unbounded replicated log.
 		// We set the snapshot logger to zerolog
-		snapshotLogger := &a.Logger
 		snapshots, err = raft.NewFileSnapshotStoreWithLogger(
-			filepath.Join(a.Config.DataDir, "raft"), 3,
-			customHclogWithZerolog("snapshot", a.Logger.GetLevel().String(), *snapshotLogger),
+			filepath.Join(a.config.DataDir, "raft"), 3,
+			sxlog.HclogWrapper("snapshot", a.logger.GetLevel().String(), &a.logger),
 		)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)
@@ -245,7 +246,7 @@ func (a *Agent) setupRaft() error {
 
 		// Create the BoltDB backend
 		if a.raftStore == nil {
-			s, err := raftboltdb.NewBoltStore(filepath.Join(a.Config.DataDir, "raft", "raft.db"))
+			s, err := raftboltdb.NewBoltStore(filepath.Join(a.config.DataDir, "raft", "raft.db"))
 			if err != nil {
 				return fmt.Errorf("error creating new raft store: %s", err)
 			}
@@ -262,9 +263,9 @@ func (a *Agent) setupRaft() error {
 		logStore = cacheStore
 
 		// Check for peers.json file for recovery
-		peersFile := filepath.Join(a.Config.DataDir, "raft", "peers.json")
+		peersFile := filepath.Join(a.config.DataDir, "raft", "peers.json")
 		if _, err := os.Stat(peersFile); err == nil {
-			a.Logger.Info().Msg("found peers.json file, recovering Raft configuration...")
+			a.logger.Info().Msg("found peers.json file, recovering Raft configuration...")
 
 			var configuration raft.Configuration
 			configuration, err = raft.ReadConfigJSON(peersFile)
@@ -273,18 +274,18 @@ func (a *Agent) setupRaft() error {
 			}
 
 			// set store logger to zerolog
-			storeLogger := &a.Logger
+			storeLogger := &a.logger
 			store, err := NewStore(storeLogger.Hook(
 				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
 					e.Str("store-xxxxxx", msg)
 				}),
 			))
 			if err != nil {
-				a.Logger.Fatal().Err(err).Msg("sinx: Error initializing store")
+				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 			}
 
 			// set fsm logger to zerolog
-			tmpFsmLogger := &a.Logger
+			tmpFsmLogger := &a.logger
 			tmpFsm := newRaftFSM(
 				store, nil,
 				tmpFsmLogger.Hook(
@@ -300,13 +301,13 @@ func (a *Agent) setupRaft() error {
 			if err := os.Remove(peersFile); err != nil {
 				return fmt.Errorf("recovery failed to delete peers.json, please delete manually (see peers.info for details): %v", err)
 			}
-			a.Logger.Info().Msg("deleted peers.json file after successful recovery")
+			a.logger.Info().Msg("deleted peers.json file after successful recovery")
 		}
 	}
 
 	// If we are in bootstrap or dev mode and the state is clean then we can
 	// bootstrap now.
-	if a.Config.Bootstrap || a.Config.DevMode {
+	if a.config.Bootstrap || a.config.DevMode {
 		hasState, err := raft.HasExistingState(logStore, stableStore, snapshots)
 		if err != nil {
 			return err
@@ -329,7 +330,7 @@ func (a *Agent) setupRaft() error {
 	// Instantiate the Raft systems. The second parameter is a finite state machine
 	// which stores the actual kv pairs and is operated upon through Apply().
 	// set fsm logger to zerolog.
-	fsmLogger := &a.Logger
+	fsmLogger := &a.logger
 	fsm := newRaftFSM(
 		a.Store, a.ProAppliers,
 		fsmLogger.Hook(
@@ -351,7 +352,7 @@ func (a *Agent) setupRaft() error {
 
 // setupSerf is used to create the agent we use
 func (a *Agent) setupSerf() (*serf.Serf, error) {
-	config := a.Config
+	config := a.config
 
 	// Init peer list
 	a.localPeers = make(map[raft.ServerAddress]*ServerParts)
@@ -380,22 +381,22 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.Init()
 
 	// set serf logger
-	serfLogger := &a.Logger
+	serfLogger := &a.logger
 	serfConfig.Logger = customGologWithZerolog(*serfLogger)
 
-	serfConfig.Tags = a.Config.Tags
+	serfConfig.Tags = a.config.Tags
 	serfConfig.Tags["role"] = "sinx"
-	serfConfig.Tags["dc"] = a.Config.Datacenter
-	serfConfig.Tags["region"] = a.Config.Region
+	serfConfig.Tags["dc"] = a.config.Datacenter
+	serfConfig.Tags["region"] = a.config.Region
 	serfConfig.Tags["version"] = Version
-	if a.Config.Server {
-		serfConfig.Tags["server"] = strconv.FormatBool(a.Config.Server)
+	if a.config.Server {
+		serfConfig.Tags["server"] = strconv.FormatBool(a.config.Server)
 	}
-	if a.Config.Bootstrap {
+	if a.config.Bootstrap {
 		serfConfig.Tags["bootstrap"] = "1"
 	}
-	if a.Config.BootstrapExpect != 0 {
-		serfConfig.Tags["expect"] = fmt.Sprintf("%d", a.Config.BootstrapExpect)
+	if a.config.BootstrapExpect != 0 {
+		serfConfig.Tags["expect"] = fmt.Sprintf("%d", a.config.BootstrapExpect)
 	}
 
 	switch config.Profile {
@@ -416,7 +417,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.MemberlistConfig.SecretKey = encryptKey
 
 	// set serf memberlist logger
-	serfMemberlistLogger := &a.Logger
+	serfMemberlistLogger := &a.logger
 	serfConfig.MemberlistConfig.Logger = customGologWithZerolog(*serfMemberlistLogger)
 
 	serfConfig.NodeName = config.NodeName
@@ -428,7 +429,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 
 	serfConfig.ReconnectTimeout, err = time.ParseDuration(config.SerfReconnectTimeout)
 	if err != nil {
-		a.Logger.Fatal().Err(err).Send()
+		a.logger.Fatal().Err(err).Send()
 	}
 
 	// Create a channel to listen for events from Serf
@@ -436,12 +437,12 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.EventCh = a.eventCh
 
 	// Start Serf
-	a.Logger.Info().Msg("agent: SinX agent starting")
+	a.logger.Info().Msg("agent: SinX agent starting")
 
 	// Create serf first
 	serf, err := serf.Create(serfConfig)
 	if err != nil {
-		a.Logger.Error().Err(err).Send()
+		a.logger.Error().Err(err).Send()
 		return nil, err
 	}
 	return serf, nil
@@ -497,7 +498,7 @@ func (a *Agent) LocalServers() (members []*ServerParts) {
 		if !ok || member.Status != serf.StatusAlive {
 			continue
 		}
-		if a.Config.Region == parts.Region {
+		if a.config.Region == parts.Region {
 			members = append(members, parts)
 		}
 	}
@@ -507,19 +508,19 @@ func (a *Agent) LocalServers() (members []*ServerParts) {
 // Listens to events from Serf and handle the event.
 func (a *Agent) eventLoop() {
 	serfShutdownCh := a.Serf.ShutdownCh()
-	a.Logger.Info().Msg("agent: Listen for events")
+	a.logger.Info().Msg("agent: Listen for events")
 	for {
 		select {
 		case e := <-a.eventCh:
-			a.Logger.Info().Str("event", e.String()).Msg("agent: Received event")
+			a.logger.Info().Str("event", e.String()).Msg("agent: Received event")
 
 			metrics.IncrCounter([]string{"agent", "event_received", e.String()}, 1)
 
 			// Log all member events
 			if me, ok := e.(serf.MemberEvent); ok {
 				for _, member := range me.Members {
-					a.Logger.Debug().
-						Str("node", a.Config.NodeName).
+					a.logger.Debug().
+						Str("node", a.config.NodeName).
 						Str("member", member.Name).
 						Any("event", e.EventType()).
 						Msg("agent: Member event")
@@ -544,12 +545,12 @@ func (a *Agent) eventLoop() {
 					a.localMemberEvent(me)
 				case serf.EventUser, serf.EventQuery: // Ignore
 				default:
-					a.Logger.Warn().Str("event", e.String()).Msg("agent: Unhandled serf event")
+					a.logger.Warn().Str("event", e.String()).Msg("agent: Unhandled serf event")
 				}
 			}
 
 		case <-serfShutdownCh:
-			a.Logger.Warn().Msg("agent: Serf shutdown detected, quitting")
+			a.logger.Warn().Msg("agent: Serf shutdown detected, quitting")
 
 			return
 		}
@@ -558,21 +559,21 @@ func (a *Agent) eventLoop() {
 
 // Join asks the Serf instance to join. See the Serf.Join function.
 func (a *Agent) join(addrs []string, replay bool) (n int, err error) {
-	a.Logger.Info().Msgf("agent: joining: %v replay: %v", addrs, replay)
+	a.logger.Info().Msgf("agent: joining: %v replay: %v", addrs, replay)
 
 	n, err = a.Serf.Join(addrs, !replay)
 	if n > 0 {
-		a.Logger.Info().Msgf("agent: joined: %d nodes", n)
+		a.logger.Info().Msgf("agent: joined: %d nodes", n)
 	}
 	if err != nil {
-		a.Logger.Warn().Msgf("agent: error joining: %v", err)
+		a.logger.Warn().Msgf("agent: error joining: %v", err)
 	}
 
 	return
 }
 
 func (a *Agent) getTargetNodes(tags map[string]string, selectFunc func([]Node) int) []Node {
-	bareTags, cardinality := cleanTags(tags, a.Logger)
+	bareTags, cardinality := cleanTags(tags, a.logger)
 	nodes := a.getQualifyingNodes(a.Serf.Members(), bareTags)
 
 	return selectNodes(nodes, cardinality, selectFunc)
@@ -584,7 +585,7 @@ func (a *Agent) getQualifyingNodes(nodes []Node, bareTags map[string]string) []N
 	// Determine the usable set of nodes
 	qualifiers := filterArray(nodes, func(node Node) bool {
 		return node.Status == serf.StatusAlive &&
-			node.Tags["region"] == a.Config.Region &&
+			node.Tags["region"] == a.config.Region &&
 			nodeMatchesTags(node, bareTags)
 	})
 
@@ -632,13 +633,13 @@ func filterArray(arr []Node, filterFunc func(Node) bool) []Node {
 // in marathon, it would return the host's IP and advertise RPC port
 func (a *Agent) advertiseRPCAddr() string {
 	bindIP := a.Serf.LocalMember().Addr
-	return net.JoinHostPort(bindIP.String(), strconv.Itoa(a.Config.AdvertiseRPCPort))
+	return net.JoinHostPort(bindIP.String(), strconv.Itoa(a.config.AdvertiseRPCPort))
 }
 
 // Get bind address for RPC
 func (a *Agent) bindRPCAddr() string {
-	bindIP, _, _ := a.Config.AddrParts(a.Config.BindAddr)
-	return net.JoinHostPort(bindIP, strconv.Itoa(a.Config.RPCPort))
+	bindIP, _, _ := a.config.AddrParts(a.config.BindAddr)
+	return net.JoinHostPort(bindIP, strconv.Itoa(a.config.RPCPort))
 }
 
 // applySetJob is a helper method to be called when
@@ -702,11 +703,11 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 	}
 
 	for _, peer := range peers {
-		a.Logger.Debug().Str("peer", peer).Msg("Checking peer")
+		a.logger.Debug().Str("peer", peer).Msg("Checking peer")
 		conn, err := net.DialTimeout("tcp", peer, 1*time.Second)
 		if err == nil {
 			conn.Close()
-			a.Logger.Debug().Str("peer", peer).Msg("Found good peer")
+			a.logger.Debug().Str("peer", peer).Msg("Found good peer")
 
 			return peer, nil
 		}
@@ -715,28 +716,28 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 }
 
 func (a *Agent) startReporter() {
-	if a.Config.DisableUsageStats || a.Config.DevMode {
-		a.Logger.Info().Msg("agent: usage report client disabled")
+	if a.config.DisableUsageStats || a.config.DevMode {
+		a.logger.Info().Msg("agent: usage report client disabled")
 		return
 	}
 
-	clusterID, err := a.Config.Hash()
+	clusterID, err := a.config.Hash()
 	if err != nil {
-		a.Logger.Warn().Msgf("agent: unable to hash the service configuration: %s", err.Error())
+		a.logger.Warn().Msgf("agent: unable to hash the service configuration: %s", err.Error())
 		return
 	}
 
 	go func() {
 		serverID, _ := uuid.GenerateUUID()
-		a.Logger.Info().Msgf("agent: registering usage stats for cluster ID '%s'", clusterID)
+		a.logger.Info().Msgf("agent: registering usage stats for cluster ID '%s'", clusterID)
 
 		if err := client.StartReporter(context.Background(), client.Options{
 			ClusterID: clusterID,
 			ServerID:  serverID,
 			URL:       "https://stats.xxxxxxx.io",
-			Version:   fmt.Sprintf("%s %s", Name, Version),
+			Version:   fmt.Sprintf("%s %s", sxconfig.Name, sxconfig.Version),
 		}); err != nil {
-			a.Logger.Warn().Msgf("agent: unable to create the usage report client: %s", err.Error())
+			a.logger.Warn().Msgf("agent: unable to create the usage report client: %s", err.Error())
 		}
 	}()
 }

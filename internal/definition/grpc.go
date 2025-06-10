@@ -10,15 +10,15 @@ import (
 	sxproto "github.com/sine-io/sinx/types"
 )
 
-// DkronGRPCServer defines the basics that a gRPC server should implement.
-type DkronGRPCServer interface {
-	sxproto.DkronServer
+// SinxGRPCServer defines the basics that a gRPC server should implement.
+type SinxGRPCServer interface {
+	sxproto.SinxServer
 	Serve(net.Listener) error
 }
 
-// DkronGRPCClient defines the interface that any gRPC client for
-// dkron should implement.
-type DkronGRPCClient interface {
+// SinxGRPCClient defines the interface that any gRPC client for
+// sinx should implement.
+type SinxGRPCClient interface {
 	Connect(string) (*grpc.ClientConn, error)
 	ExecutionDone(string, *sxexec.Execution) error
 	GetJob(string, string) (*sxjob.Job, error)

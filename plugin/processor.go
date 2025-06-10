@@ -3,10 +3,12 @@ package plugin
 import (
 	"net/rpc"
 
-	"github.com/hashicorp/go-plugin"
+	goplugin "github.com/hashicorp/go-plugin"
 
 	sxproto "github.com/sine-io/sinx/types"
 )
+
+// Execution processor.
 
 // Processor is an interface that wraps the Process method.
 // Plugins must implement this interface.
@@ -21,12 +23,12 @@ type ProcessorPlugin struct {
 }
 
 // Server implements the RPC server
-func (p *ProcessorPlugin) Server(b *plugin.MuxBroker) (interface{}, error) {
+func (p *ProcessorPlugin) Server(b *goplugin.MuxBroker) (interface{}, error) {
 	return &ProcessorServer{Broker: b, Processor: p.Processor}, nil
 }
 
 // Client implements the RPC client
-func (p *ProcessorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p *ProcessorPlugin) Client(b *goplugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return &ProcessorClient{Broker: b, Client: c}, nil
 }
 
@@ -43,7 +45,7 @@ type Config map[string]string
 
 // ProcessorClient is an implementation that talks over RPC
 type ProcessorClient struct {
-	Broker *plugin.MuxBroker
+	Broker *goplugin.MuxBroker
 	Client *rpc.Client
 }
 
@@ -64,7 +66,7 @@ func (e *ProcessorClient) Process(args *ProcessorArgs) sxproto.Execution {
 // the requirements of net/rpc
 type ProcessorServer struct {
 	// This is the real implementation
-	Broker    *plugin.MuxBroker
+	Broker    *goplugin.MuxBroker
 	Processor Processor
 }
 

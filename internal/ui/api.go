@@ -22,7 +22,7 @@ func (h *HTTPTransport) APIRoutes(r *gin.RouterGroup, middleware ...gin.HandlerF
 		})
 	})
 
-	if h.agent.Config.EnablePrometheus {
+	if h.config.EnablePrometheus {
 		// Prometheus metrics scrape endpoint
 		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	}

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -85,13 +84,9 @@ func agentRun(args ...string) error {
 	}
 
 	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
-	// set agent logger
-	agentLogger := &zlog.Logger // use pointer to avoid value copy issues
-	agent.Logger = agentLogger.Hook(
-		zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-			e.Str("node", cfg.NodeName) // Add node name to each log event
-		}),
-	)
+
+	// set agent logger, add node name.
+	agent.SetLogger(&zlog.Logger)
 
 	if err := sxagent.StartAgent(agent); err != nil {
 		return err
