@@ -1,4 +1,4 @@
-package agent
+package metrics
 
 import (
 	"fmt"
@@ -7,9 +7,11 @@ import (
 	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-metrics/datadog"
 	"github.com/hashicorp/go-metrics/prometheus"
+
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
-func initMetrics(a *Agent) error {
+func SetupMetrics(config *sxconfig.Config) error {
 	// Setup the inmem sink and signal handler
 	inm := metrics.NewInmemSink(10*time.Second, time.Minute)
 	metrics.DefaultInmemSignal(inm)
@@ -17,7 +19,7 @@ func initMetrics(a *Agent) error {
 	var fanout metrics.FanoutSink
 
 	// Configure the prometheus sink
-	if a.config.EnablePrometheus {
+	if config.EnablePrometheus {
 		promSink, err := prometheus.NewPrometheusSink()
 		if err != nil {
 			return err
@@ -26,8 +28,8 @@ func initMetrics(a *Agent) error {
 	}
 
 	// Configure the statsd sink
-	if a.config.StatsdAddr != "" {
-		statsSink, err := metrics.NewStatsdSink(a.config.StatsdAddr)
+	if config.StatsdAddr != "" {
+		statsSink, err := metrics.NewStatsdSink(config.StatsdAddr)
 		if err != nil {
 			return fmt.Errorf("failed to start statsd sink. Got: %s", err)
 		}
@@ -35,14 +37,15 @@ func initMetrics(a *Agent) error {
 	}
 
 	// Configure the DogStatsd sink
-	if a.config.DogStatsdAddr != "" {
+	if config.DogStatsdAddr != "" {
 		var tags []string
 
-		if a.config.DogStatsdTags != nil {
-			tags = a.config.DogStatsdTags
+		if config.DogStatsdTags != nil {
+			tags = config.DogStatsdTags
 		}
 
-		docStatsSink, err := datadog.NewDogStatsdSink(a.config.DogStatsdAddr, a.config.NodeName)
+		docStatsSink, err := datadog.NewDogStatsdSink(
+			config.DogStatsdAddr, config.NodeName)
 		if err != nil {
 			return fmt.Errorf("failed to start DogStatsd sink. Got: %s", err)
 		}

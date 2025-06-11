@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,6 +26,8 @@ var (
 
 	ShutdownCh chan (struct{})
 	agent      *sxagent.Agent
+
+	logger = zerolog.New(zerolog.NewConsoleWriter())
 )
 
 const (
@@ -66,29 +69,29 @@ It also runs a web UI.`,
 }
 
 func agentRun(args ...string) error {
-	// sine, 2025.5.30
+	// 1. init agent with config and logger.
+	agent = sxagent.NewAgent(cfg).
+		WithLogger(&zlog.Logger)
+
+	logger = agent.Logger()
 	// This log statement helps avoid compiler warnings about unused parameters
 	// as 'args' is not used elsewhere in the function
-	zlog.Debug().Msgf("agentRun called with args: %v", args)
+	logger.Debug().Msgf("agentRun called with args: %v", args)
 
-	// Make sure we clean up any managed plugins at the end of this
-	p := &sxplugin.Plugins{
-		NodeName: cfg.NodeName,
-	}
+	// 2. set agent plugins
+	p := sxplugin.NewPlugins().WithLogger(&logger)
 	if err := p.DiscoverPlugins(); err != nil {
-		zlog.Fatal().Err(err).Send()
+		logger.Fatal().Err(err).Send()
 	}
-	plugins := sxagent.Plugins{
+
+	plugins := sxagent.PluginRegistry{
 		Processors: p.Processors,
 		Executors:  p.Executors,
 	}
+	agent.WithPlugins(plugins)
 
-	agent = sxagent.NewAgent(cfg, sxagent.WithPlugins(plugins))
-
-	// set agent logger, add node name.
-	agent.SetLogger(&zlog.Logger)
-
-	if err := sxagent.StartAgent(agent); err != nil {
+	// 3.
+	if err := agent.StartAgent(); err != nil {
 		return err
 	}
 
@@ -112,12 +115,12 @@ WAIT:
 	case s := <-signalCh:
 		sig = s
 	case err := <-agent.RetryJoinCh():
-		zlog.Error().Err(err).Msg("agent: Retry join failed")
+		logger.Error().Err(err).Msg("agent: Retry join failed")
 		return 1
 	case <-ShutdownCh:
 		sig = os.Interrupt
 	}
-	zlog.Info().Msgf("Caught signal: %v", sig)
+	logger.Info().Msgf("Caught signal: %v", sig)
 
 	// Check if this is a SIGHUP
 	if sig == syscall.SIGHUP {
@@ -131,10 +134,10 @@ WAIT:
 	}
 
 	// Attempt a graceful leave
-	zlog.Info().Msg("agent: Gracefully shutting down agent...")
+	logger.Info().Msg("agent: Gracefully shutting down agent...")
 	go func() {
 		if err := sxagent.StopAgent(agent); err != nil {
-			zlog.Error().Err(err).Msg("unable to stop agent")
+			logger.Error().Err(err).Msg("unable to stop agent")
 			return
 		}
 	}()
@@ -142,9 +145,9 @@ WAIT:
 	gracefulCh := make(chan struct{})
 
 	for {
-		zlog.Info().Msg("Waiting for jobs to finish...")
+		logger.Info().Msg("Waiting for jobs to finish...")
 		if agent.GetRunningJobs() < 1 {
-			zlog.Info().Msg("No jobs left. Exiting.")
+			logger.Info().Msg("No jobs left. Exiting.")
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -167,7 +170,7 @@ WAIT:
 
 // handleReload is invoked when we should reload our configs, e.g. SIGHUP
 func handleReload() {
-	zlog.Info().Msg("Reloading configuration...")
+	logger.Info().Msg("Reloading configuration...")
 	initConfig()
 	//Config reloading will also reload Notification settings
 	agent.UpdateTags(cfg.Tags)

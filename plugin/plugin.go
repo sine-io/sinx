@@ -1,25 +1,24 @@
 package plugin
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-plugin"
+	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/kardianos/osext"
 	"github.com/spf13/viper"
 
 	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
+
+	sxlog "github.com/sine-io/sinx/log"
 )
 
 // See serve.go for serving plugins
 
 // PluginMap should be used by clients for the map of plugins.
-var PluginMap = map[string]plugin.Plugin{
+var PluginMap = map[string]goplugin.Plugin{
 	"processor": &ProcessorPlugin{},
 	"executor":  &ExecutorPlugin{},
 }
@@ -29,8 +28,23 @@ var embedPlugins = []string{"shell", "http"}
 type Plugins struct {
 	Processors map[string]Processor
 	Executors  map[string]Executor
-	// LogLevel   string
-	NodeName string
+
+	logger zerolog.Logger
+}
+
+func NewPlugins() *Plugins {
+	return &Plugins{
+		Processors: make(map[string]Processor),
+		Executors:  make(map[string]Executor),
+
+		logger: zerolog.New(zerolog.NewConsoleWriter()), // default logger
+	}
+}
+
+func (p *Plugins) WithLogger(logger *zerolog.Logger) *Plugins {
+	p.logger = logger.Hook() // TODO: do nothing now, but we can add hooks later
+
+	return p
 }
 
 // DiscoverPlugins located on disk
@@ -51,13 +65,13 @@ func (p *Plugins) DiscoverPlugins() error {
 	}
 
 	// Look in /etc/sinx/plugins (or the used config path)
-	processors, err := plugin.Discover("sinx-processor-*", pluginDir)
+	processors, err := goplugin.Discover("sinx-processor-*", pluginDir)
 	if err != nil {
 		return err
 	}
 
 	// Look in /etc/sinx/plugins (or the used config path)
-	executors, err := plugin.Discover("sinx-executor-*", pluginDir)
+	executors, err := goplugin.Discover("sinx-executor-*", pluginDir)
 	if err != nil {
 		return err
 	}
@@ -66,15 +80,15 @@ func (p *Plugins) DiscoverPlugins() error {
 	// /usr/local/bin. If found, this replaces what we found in the config path.
 	exePath, err := osext.Executable()
 	if err != nil {
-		zlog.Error().Err(err).Msg("Error loading exe directory")
+		p.logger.Error().Err(err).Msg("Error loading exe directory")
 	} else {
-		p, err := plugin.Discover("sinx-processor-*", filepath.Dir(exePath))
+		p, err := goplugin.Discover("sinx-processor-*", filepath.Dir(exePath))
 		if err != nil {
 			return err
 		}
 		processors = append(processors, p...)
 
-		e, err := plugin.Discover("sinx-executor-*", filepath.Dir(exePath))
+		e, err := goplugin.Discover("sinx-executor-*", filepath.Dir(exePath))
 		if err != nil {
 			return err
 		}
@@ -137,46 +151,28 @@ func getPluginName(file string) (string, bool) {
 
 func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (interface{}, error) {
 	// Build the plugin client configuration and init the plugin
-	var config plugin.ClientConfig
-
-	config.Cmd = exec.Command(path, args...)
-	config.HandshakeConfig = Handshake
-	config.Managed = true
-	config.Plugins = PluginMap
-	config.SyncStdout = os.Stdout
-	config.SyncStderr = os.Stderr
-	config.Logger = hclog.New(&hclog.LoggerOptions{
-		Name:  "plugins",
-		Level: hclog.LevelFromString(viper.GetString("log-level")),
-		// Output: zlog.Logger,
-		Output: zlog.Logger.Hook(
-			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-				var jsonFields map[string]any
-
-				err := json.Unmarshal([]byte(msg), &jsonFields)
-				if err != nil {
-					e.Err(err)
-				} else {
-					jsonFields["level"] = jsonFields["@level"]
-					delete(jsonFields, "@level")
-					delete(jsonFields, "@timestamp")
-
-					// TODO: I don't know how to delete message in zlog.Logger, i will do it later.
-					e.Fields(jsonFields)
-				}
-			}),
+	var config = &goplugin.ClientConfig{
+		Cmd:             exec.Command(path, args...),
+		HandshakeConfig: Handshake,
+		Managed:         true,
+		Plugins:         PluginMap,
+		SyncStdout:      os.Stdout,
+		SyncStderr:      os.Stderr,
+		Logger: sxlog.HclogWrapper(
+			"plugins",
+			viper.GetString("log-level"),
+			&p.logger,
 		),
-		JSONFormat: true,
-	})
+	}
 
 	switch pluginType {
 	case ProcessorPluginName:
-		config.AllowedProtocols = []plugin.Protocol{plugin.ProtocolNetRPC}
+		config.AllowedProtocols = []goplugin.Protocol{goplugin.ProtocolNetRPC}
 	case ExecutorPluginName:
-		config.AllowedProtocols = []plugin.Protocol{plugin.ProtocolGRPC}
+		config.AllowedProtocols = []goplugin.Protocol{goplugin.ProtocolGRPC}
 	}
 
-	client := plugin.NewClient(&config)
+	client := goplugin.NewClient(config)
 
 	// Request the RPC client so we can get the provider
 	// so we can build the actual RPC-implemented provider.

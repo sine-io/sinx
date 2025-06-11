@@ -10,17 +10,22 @@ import (
 	"github.com/rs/zerolog"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxlog "github.com/sine-io/sinx/log"
 )
 
 func (a *Agent) retryJoinLAN() {
 	r := &retryJoiner{
 		cluster:     "LAN",
-		addrs:       a.Config.RetryJoinLAN,
-		maxAttempts: a.Config.RetryJoinMaxAttemptsLAN,
-		interval:    a.Config.RetryJoinIntervalLAN,
+		addrs:       a.config.RetryJoinLAN,
+		maxAttempts: a.config.RetryJoinMaxAttemptsLAN,
+		interval:    a.config.RetryJoinIntervalLAN,
 		join:        a.JoinLAN,
+		logger:      zerolog.New(zerolog.NewConsoleWriter()),
 	}
-	if err := r.retryJoin(a.Logger); err != nil {
+
+	r.WithLogger(&a.logger)
+
+	if err := r.retryJoin(); err != nil {
 		a.retryJoinCh <- err
 	}
 }
@@ -44,9 +49,17 @@ type retryJoiner struct {
 	// join adds the discovered or configured servers to the given
 	// serf cluster.
 	join func([]string) (int, error)
+
+	logger zerolog.Logger
 }
 
-func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
+func (r *retryJoiner) WithLogger(logger *zerolog.Logger) *retryJoiner {
+	r.logger = logger.Hook()
+
+	return r
+}
+
+func (r *retryJoiner) retryJoin() error {
 	if len(r.addrs) == 0 {
 		return nil
 	}
@@ -66,8 +79,8 @@ func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
 		return err
 	}
 
-	logger.Info().Msgf("agent: Retry join %s is supported for: %s", r.cluster, strings.Join(disco.Names(), " "))
-	logger.Info().Str("cluster", r.cluster).Msg("agent: Joining cluster...")
+	r.logger.Info().Msgf("agent: Retry join %s is supported for: %s", r.cluster, strings.Join(disco.Names(), " "))
+	r.logger.Info().Str("cluster", r.cluster).Msg("agent: Joining cluster...")
 
 	attempt := 0
 	for {
@@ -77,23 +90,21 @@ func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
 		for _, addr := range r.addrs {
 			switch {
 			case strings.Contains(addr, "provider="):
-				discoLogger := &logger
 				servers, err := disco.Addrs(
 					addr,
-					// golog.New(discoLogger, "", golog.LstdFlags|golog.Lshortfile),
-					customGologWithZerolog(*discoLogger),
+					sxlog.GologWrapper(&r.logger),
 				)
 				if err != nil {
-					logger.Error().Err(err).Str("cluster", r.cluster).Msg("agent: Error Joining")
+					r.logger.Error().Err(err).Str("cluster", r.cluster).Msg("agent: Error Joining")
 				} else {
 					addrs = append(addrs, servers...)
-					logger.Info().Msgf("agent: Discovered %s servers: %s", r.cluster, strings.Join(servers, " "))
+					r.logger.Info().Msgf("agent: Discovered %s servers: %s", r.cluster, strings.Join(servers, " "))
 				}
 
 			default:
 				ipAddr, err := sxconfig.ParseSingleIPTemplate(addr)
 				if err != nil {
-					logger.Error().Err(err).Str("addr", addr).Msg("agent: Error parsing retry-join ip template")
+					r.logger.Error().Err(err).Str("addr", addr).Msg("agent: Error parsing retry-join ip template")
 					continue
 				}
 				addrs = append(addrs, ipAddr)
@@ -103,7 +114,7 @@ func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
 		if len(addrs) > 0 {
 			n, err := r.join(addrs)
 			if err == nil {
-				logger.Info().Msgf("agent: Join %s completed. Synced with %d initial agents", r.cluster, n)
+				r.logger.Info().Msgf("agent: Join %s completed. Synced with %d initial agents", r.cluster, n)
 				return nil
 			}
 		}
@@ -117,7 +128,7 @@ func (r *retryJoiner) retryJoin(logger zerolog.Logger) error {
 			return fmt.Errorf("agent: max join %s retry exhausted, exiting", r.cluster)
 		}
 
-		logger.Warn().Msgf("agent: Join %s failed: %v, retrying in %v", r.cluster, err, r.interval)
+		r.logger.Warn().Msgf("agent: Join %s failed: %v, retrying in %v", r.cluster, err, r.interval)
 
 		time.Sleep(r.interval)
 	}

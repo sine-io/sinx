@@ -40,7 +40,7 @@ type kv struct {
 }
 
 // BuntJobDB is the local implementation of the JobDB interface.
-// It gives dkron the ability to manipulate its embedded storage
+// It gives sinx the ability to manipulate its embedded storage
 // BuntDB.
 type BuntJobDB struct {
 	db   *buntdb.DB
@@ -50,7 +50,7 @@ type BuntJobDB struct {
 }
 
 // NewBuntJobDB creates a new NewBuntJobDB instance.
-func NewBuntJobDB(logger zerolog.Logger) (*BuntJobDB, error) {
+func NewBuntJobDB() (*BuntJobDB, error) {
 	db, err := buntdb.Open(":memory:")
 	if err != nil {
 		return nil, err
@@ -67,13 +67,21 @@ func NewBuntJobDB(logger zerolog.Logger) (*BuntJobDB, error) {
 	_ = db.CreateIndex("last_error", jobsPrefix+":*", buntdb.IndexJSON("last_error"))
 	_ = db.CreateIndex("next", jobsPrefix+":*", buntdb.IndexJSON("next"))
 
-	store := &BuntJobDB{
-		db:     db,
-		lock:   &sync.Mutex{},
-		logger: logger,
+	bunt := &BuntJobDB{
+		db:   db,
+		lock: &sync.Mutex{},
+		// set default logger, we should use WithLogger to set your own logger.
+		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
 
-	return store, nil
+	return bunt, nil
+}
+
+// WithLogger sets the logger for the BuntJobDB instance.
+func (bjd *BuntJobDB) WithLogger(logger *zerolog.Logger) *BuntJobDB {
+	bjd.logger = logger.Hook()
+
+	return bjd
 }
 
 // SetJob stores a job in the storage

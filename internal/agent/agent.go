@@ -17,7 +17,6 @@ import (
 	"github.com/devopsfaith/krakend-usage/client"
 	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/hashicorp/serf/serf"
@@ -81,9 +80,9 @@ type Agent struct {
 	MemberEventHandler func(serf.Event)
 	ProAppliers        LogAppliers
 
-	Serf        *serf.Serf
+	serf        *serf.Serf
 	eventCh     chan serf.Event
-	sched       *Scheduler
+	sched       sxdefine.Scheduler
 	ready       bool
 	shutdownCh  chan struct{}
 	retryJoinCh chan error
@@ -94,9 +93,12 @@ type Agent struct {
 	raft     *raft.Raft
 	// raftLayer provides network layering of the raft RPC along with
 	// the SinX gRPC transport layer.
-	raftLayer     *RaftLayer
-	raftStore     sxdefine.RaftStore
-	raftInmem     *raft.InmemStore
+	raftLayer *RaftLayer
+	// raftStore is the store used to persist raft logs and state.
+	raftStore sxdefine.RaftStore
+	// raftInmem is the in-memory store used for development mode.
+	raftInmem *raft.InmemStore
+	// raftTransport is the network transport used by raft to communicate
 	raftTransport *raft.NetworkTransport
 
 	// reconcileCh is used to pass events from the serf handler
@@ -106,7 +108,7 @@ type Agent struct {
 
 	// peers is used to track the known SinX servers. This is
 	// used for region forwarding and clustering.
-	Peers        map[string][]*ServerParts
+	peers        map[string][]*ServerParts
 	localPeers   map[raft.ServerAddress]*ServerParts
 	peerLock     sync.RWMutex
 	serverLookup *ServerLookup
@@ -121,35 +123,26 @@ type Agent struct {
 	config *sxconfig.Config
 }
 
-func (a *Agent) SetLogger(l *zerolog.Logger) {
-	a.logger = l.Hook(
-		zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-			e.Str("node", a.config.NodeName) // Add node name to each log event
-		}),
-	)
-}
-
 // ProcessorFactory is a function type that creates a new instance
 // of a processor.
 type ProcessorFactory func() (sxplugin.Processor, error)
 
-// Plugins struct to store loaded plugins of each type
-type Plugins struct {
+// PluginRegistry struct to store loaded plugins of each type
+type PluginRegistry struct {
 	Processors map[string]sxplugin.Processor
 	Executors  map[string]sxplugin.Executor
 }
 
 // NewAgent returns a new Agent instance capable of starting
 // and running a SinX instance.
-func NewAgent(config *sxconfig.Config, options ...Options) *Agent {
+func NewAgent(config *sxconfig.Config) *Agent {
 	agent := &Agent{
 		config:       config,
 		retryJoinCh:  make(chan error),
 		serverLookup: NewServerLookup(),
-	}
 
-	for _, option := range options {
-		option(agent)
+		// set default logger, you can override it with WithLogger
+		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
 
 	return agent
@@ -350,104 +343,6 @@ func (a *Agent) setupRaft() error {
 	return nil
 }
 
-// setupSerf is used to create the agent we use
-func (a *Agent) setupSerf() (*serf.Serf, error) {
-	config := a.config
-
-	// Init peer list
-	a.localPeers = make(map[raft.ServerAddress]*ServerParts)
-	a.peers = make(map[string][]*ServerParts)
-
-	bindIP, bindPort, err := config.AddrParts(config.BindAddr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid bind address: %s", err)
-	}
-
-	var advertiseIP string
-	var advertisePort int
-	if config.AdvertiseAddr != "" {
-		advertiseIP, advertisePort, err = config.AddrParts(config.AdvertiseAddr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid advertise address: %s", err)
-		}
-	}
-
-	encryptKey, err := config.EncryptBytes()
-	if err != nil {
-		return nil, fmt.Errorf("invalid encryption key: %s", err)
-	}
-
-	serfConfig := serf.DefaultConfig()
-	serfConfig.Init()
-
-	// set serf logger
-	serfLogger := &a.logger
-	serfConfig.Logger = customGologWithZerolog(*serfLogger)
-
-	serfConfig.Tags = a.config.Tags
-	serfConfig.Tags["role"] = "sinx"
-	serfConfig.Tags["dc"] = a.config.Datacenter
-	serfConfig.Tags["region"] = a.config.Region
-	serfConfig.Tags["version"] = Version
-	if a.config.Server {
-		serfConfig.Tags["server"] = strconv.FormatBool(a.config.Server)
-	}
-	if a.config.Bootstrap {
-		serfConfig.Tags["bootstrap"] = "1"
-	}
-	if a.config.BootstrapExpect != 0 {
-		serfConfig.Tags["expect"] = fmt.Sprintf("%d", a.config.BootstrapExpect)
-	}
-
-	switch config.Profile {
-	case "lan":
-		serfConfig.MemberlistConfig = memberlist.DefaultLANConfig()
-	case "wan":
-		serfConfig.MemberlistConfig = memberlist.DefaultWANConfig()
-	case "local":
-		serfConfig.MemberlistConfig = memberlist.DefaultLocalConfig()
-	default:
-		return nil, fmt.Errorf("unknown profile: %s", config.Profile)
-	}
-
-	serfConfig.MemberlistConfig.BindAddr = bindIP
-	serfConfig.MemberlistConfig.BindPort = bindPort
-	serfConfig.MemberlistConfig.AdvertiseAddr = advertiseIP
-	serfConfig.MemberlistConfig.AdvertisePort = advertisePort
-	serfConfig.MemberlistConfig.SecretKey = encryptKey
-
-	// set serf memberlist logger
-	serfMemberlistLogger := &a.logger
-	serfConfig.MemberlistConfig.Logger = customGologWithZerolog(*serfMemberlistLogger)
-
-	serfConfig.NodeName = config.NodeName
-	serfConfig.Tags = config.Tags
-	serfConfig.CoalescePeriod = 3 * time.Second
-	serfConfig.QuiescentPeriod = time.Second
-	serfConfig.UserCoalescePeriod = 3 * time.Second
-	serfConfig.UserQuiescentPeriod = time.Second
-
-	serfConfig.ReconnectTimeout, err = time.ParseDuration(config.SerfReconnectTimeout)
-	if err != nil {
-		a.logger.Fatal().Err(err).Send()
-	}
-
-	// Create a channel to listen for events from Serf
-	a.eventCh = make(chan serf.Event, 2048)
-	serfConfig.EventCh = a.eventCh
-
-	// Start Serf
-	a.logger.Info().Msg("agent: SinX agent starting")
-
-	// Create serf first
-	serf, err := serf.Create(serfConfig)
-	if err != nil {
-		a.logger.Error().Err(err).Send()
-		return nil, err
-	}
-	return serf, nil
-}
-
 // Utility method to get leader nodename
 func (a *Agent) LeaderMember() (*serf.Member, error) {
 	l := a.raft.Leader()
@@ -557,21 +452,6 @@ func (a *Agent) eventLoop() {
 	}
 }
 
-// Join asks the Serf instance to join. See the Serf.Join function.
-func (a *Agent) join(addrs []string, replay bool) (n int, err error) {
-	a.logger.Info().Msgf("agent: joining: %v replay: %v", addrs, replay)
-
-	n, err = a.Serf.Join(addrs, !replay)
-	if n > 0 {
-		a.logger.Info().Msgf("agent: joined: %d nodes", n)
-	}
-	if err != nil {
-		a.logger.Warn().Msgf("agent: error joining: %v", err)
-	}
-
-	return
-}
-
 func (a *Agent) getTargetNodes(tags map[string]string, selectFunc func([]Node) int) []Node {
 	bareTags, cardinality := cleanTags(tags, a.logger)
 	nodes := a.getQualifyingNodes(a.Serf.Members(), bareTags)
@@ -634,12 +514,6 @@ func filterArray(arr []Node, filterFunc func(Node) bool) []Node {
 func (a *Agent) advertiseRPCAddr() string {
 	bindIP := a.Serf.LocalMember().Addr
 	return net.JoinHostPort(bindIP.String(), strconv.Itoa(a.config.AdvertiseRPCPort))
-}
-
-// Get bind address for RPC
-func (a *Agent) bindRPCAddr() string {
-	bindIP, _, _ := a.config.AddrParts(a.config.BindAddr)
-	return net.JoinHostPort(bindIP, strconv.Itoa(a.config.RPCPort))
 }
 
 // applySetJob is a helper method to be called when

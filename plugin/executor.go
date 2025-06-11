@@ -3,7 +3,7 @@ package plugin
 import (
 	"context"
 
-	"github.com/hashicorp/go-plugin"
+	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
 	sxproto "github.com/sine-io/sinx/types"
@@ -13,7 +13,7 @@ type StatusHelper interface {
 	Update([]byte, bool) (int64, error)
 }
 
-// Executor is the interface that we're exposing as a plugin.
+// Executor is the interface that we're exposing as a goplugin.
 type Executor interface {
 	Execute(args *sxproto.ExecuteRequest, cb StatusHelper) (*sxproto.ExecuteResponse, error)
 }
@@ -21,20 +21,20 @@ type Executor interface {
 // ExecutorPluginConfig is the plugin config
 type ExecutorPluginConfig map[string]string
 
-// This is the implementation of plugin.Plugin so we can serve/consume this.
+// This is the implementation of goplugin.Plugin so we can serve/consume this.
 // We also implement GRPCPlugin so that this plugin can be served over
 // gRPC.
 type ExecutorPlugin struct {
-	plugin.NetRPCUnsupportedPlugin
+	goplugin.NetRPCUnsupportedPlugin
 	Executor Executor
 }
 
-func (p *ExecutorPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+func (p *ExecutorPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) error {
 	sxproto.RegisterExecutorServer(s, ExecutorServer{Impl: p.Executor, broker: broker})
 	return nil
 }
 
-func (p *ExecutorPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (p *ExecutorPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return &ExecutorClient{client: sxproto.NewExecutorClient(c), broker: broker}, nil
 }
 
@@ -90,7 +90,7 @@ type ExecutorServer struct {
 	// This is the real implementation
 	sxproto.ExecutorServer
 	Impl   Executor
-	broker *plugin.GRPCBroker
+	broker *goplugin.GRPCBroker
 }
 
 // Execute is where the magic happens

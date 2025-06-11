@@ -11,6 +11,7 @@ import (
 	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
+	"github.com/rs/zerolog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -35,21 +36,31 @@ var (
 
 // GRPCServer is the local implementation of the gRPC server interface.
 type GRPCServer struct {
-	sxproto.DkronServer
+	sxproto.SinxServer
 	agent *Agent
+
+	logger zerolog.Logger
 }
 
-// NewGRPCServer creates and returns an instance of a DkronGRPCServer implementation
+// NewGRPCServer creates and returns an instance of a SinxGRPCServer implementation
 func NewGRPCServer(agent *Agent) *GRPCServer {
 	return &GRPCServer{
 		agent: agent,
+
+		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
 }
 
-// Serve creates and start a new gRPC dkron server
+func (grpcs *GRPCServer) WithLogger(logger *zerolog.Logger) *GRPCServer {
+	grpcs.logger = logger.Hook()
+
+	return grpcs
+}
+
+// Serve creates and start a new gRPC server
 func (grpcs *GRPCServer) Serve(lis net.Listener) error {
 	grpcServer := grpc.NewServer()
-	sxproto.RegisterDkronServer(grpcServer, grpcs)
+	sxproto.RegisterSinxServer(grpcServer, grpcs)
 
 	as := NewGRPCAgentServer(grpcs.agent)
 	sxproto.RegisterAgentServer(grpcServer, as)

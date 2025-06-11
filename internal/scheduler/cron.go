@@ -1,4 +1,4 @@
-package agent
+package scheduler
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	sxextcron "github.com/sine-io/sinx/extcron"
+	sxjob "github.com/sine-io/sinx/internal/job"
 )
 
 var (
@@ -22,14 +23,9 @@ var (
 	ErrScheduleParse = errors.New("can't parse job schedule")
 )
 
-type EntryJob struct {
-	entry *cron.Entry
-	job   *Job
-}
-
-// Scheduler represents a dkron scheduler instance, it stores the cron engine
+// CronScheduler represents a scheduler instance, it stores the cron engine
 // and the related parameters.
-type Scheduler struct {
+type CronScheduler struct {
 	// mu is to prevent concurrent edits to Cron and Started
 	mu      sync.RWMutex
 	Cron    *cron.Cron
@@ -37,19 +33,25 @@ type Scheduler struct {
 	logger  zerolog.Logger
 }
 
-// NewScheduler creates a new Scheduler instance
-func NewScheduler(logger zerolog.Logger) *Scheduler {
+// NewCronScheduler creates a new Scheduler instance
+func NewCronScheduler() *CronScheduler {
 	schedulerStarted.Set(0)
-	return &Scheduler{
+	return &CronScheduler{
 		Cron:    cron.New(cron.WithParser(sxextcron.NewParser())),
 		started: false,
-		logger:  logger,
+		logger:  zerolog.New(zerolog.NewConsoleWriter()),
 	}
+}
+
+func (s *CronScheduler) WithLogger(logger *zerolog.Logger) *CronScheduler {
+	s.logger = logger.Hook()
+
+	return s
 }
 
 // Start the cron scheduler, adding its corresponding jobs and
 // executing them on time.
-func (s *Scheduler) Start(jobs []*Job, agent *Agent) error {
+func (s *CronScheduler) Start(jobs []*sxjob.Job) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -59,8 +61,8 @@ func (s *Scheduler) Start(jobs []*Job, agent *Agent) error {
 	s.ClearCron()
 
 	metrics.IncrCounter([]string{"scheduler", "start"}, 1)
+
 	for _, job := range jobs {
-		job.Agent = agent
 		if err := s.AddJob(job); err != nil {
 			return err
 		}
@@ -74,7 +76,7 @@ func (s *Scheduler) Start(jobs []*Job, agent *Agent) error {
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
 // A context is returned so the caller can wait for running jobs to complete.
-func (s *Scheduler) Stop() context.Context {
+func (s *CronScheduler) Stop() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -93,20 +95,20 @@ func (s *Scheduler) Stop() context.Context {
 }
 
 // Restart the scheduler
-func (s *Scheduler) Restart(jobs []*Job, agent *Agent) {
+func (s *CronScheduler) Restart(jobs []*sxjob.Job) {
 	// Stop the scheduler, running jobs will continue to finish but we
 	// can not actively wait for them blocking the execution here.
 	s.Stop()
 
-	if err := s.Start(jobs, agent); err != nil {
+	if err := s.Start(jobs); err != nil {
 		s.logger.Fatal().Err(err).Send()
 	}
 }
 
 // ClearCron clears the cron scheduler
-func (s *Scheduler) ClearCron() {
+func (s *CronScheduler) ClearCron() {
 	for _, e := range s.Cron.Entries() {
-		if j, ok := e.Job.(*Job); !ok {
+		if j, ok := e.Job.(*sxjob.Job); !ok {
 			s.logger.Error().
 				Msgf("scheduler: Failed to cast job to *Job found type %T and removing it", e.Job)
 			s.Cron.Remove(e.ID)
@@ -117,36 +119,36 @@ func (s *Scheduler) ClearCron() {
 }
 
 // Started will safely return if the scheduler is started or not
-func (s *Scheduler) Started() bool {
+func (s *CronScheduler) Started() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return s.started
 }
 
-// GetEntryJob returns a EntryJob object from a snapshot in
+// GetCronEntryJob returns a CronEntryJob object from a snapshot in
 // the current time, and whether or not the entry was found.
-func (s *Scheduler) GetEntryJob(jobName string) (EntryJob, bool) {
+func (s *CronScheduler) GetCronEntryJob(jobName string) (sxjob.CronEntryJob, bool) {
 	for _, e := range s.Cron.Entries() {
-		if j, ok := e.Job.(*Job); !ok {
+		if j, ok := e.Job.(*sxjob.Job); !ok {
 			s.logger.Error().
 				Msgf("scheduler: Failed to cast job to *Job found type %T", e.Job)
 		} else {
 			if j.Name == jobName {
-				return EntryJob{
-					entry: &e,
-					job:   j,
+				return sxjob.CronEntryJob{
+					Entry: &e,
+					Job:   j,
 				}, true
 			}
 		}
 	}
-	return EntryJob{}, false
+	return sxjob.CronEntryJob{}, false
 }
 
 // AddJob Adds a job to the cron scheduler
-func (s *Scheduler) AddJob(job *Job) error {
+func (s *CronScheduler) AddJob(job *sxjob.Job) error {
 	// Check if the job is already set and remove it if exists
-	if _, ok := s.GetEntryJob(job.Name); ok {
+	if _, ok := s.GetCronEntryJob(job.Name); ok {
 		s.RemoveJob(job.Name)
 	}
 
@@ -160,7 +162,7 @@ func (s *Scheduler) AddJob(job *Job) error {
 	// If Timezone is set on the job, and not explicitly in its schedule,
 	// AND its not a descriptor (that don't support timezones), add the
 	// timezone to the schedule so robfig/cron knows about it.
-	schedule := job.scheduleHash()
+	schedule := job.ScheduleHash()
 	if job.Timezone != "" &&
 		!strings.HasPrefix(schedule, "@") &&
 		!strings.HasPrefix(schedule, "TZ=") &&
@@ -174,20 +176,28 @@ func (s *Scheduler) AddJob(job *Job) error {
 	}
 
 	cronInspect.Set(job.Name, job)
-	metrics.IncrCounterWithLabels([]string{"scheduler", "job_add"}, 1, []metrics.Label{{Name: "job", Value: job.Name}})
+	metrics.IncrCounterWithLabels(
+		[]string{"scheduler", "job_add"},
+		1,
+		[]metrics.Label{{Name: "job", Value: job.Name}},
+	)
 
 	return nil
 }
 
 // RemoveJob removes a job from the cron scheduler if it exists.
-func (s *Scheduler) RemoveJob(jobName string) {
+func (s *CronScheduler) RemoveJob(jobName string) {
 
 	s.logger.Debug().Str("job", jobName).
 		Msg("scheduler: Removing job from cron")
 
-	if ej, ok := s.GetEntryJob(jobName); ok {
-		s.Cron.Remove(ej.entry.ID)
+	if ej, ok := s.GetCronEntryJob(jobName); ok {
+		s.Cron.Remove(ej.Entry.ID)
 		cronInspect.Delete(jobName)
-		metrics.IncrCounterWithLabels([]string{"scheduler", "job_delete"}, 1, []metrics.Label{{Name: "job", Value: jobName}})
+		metrics.IncrCounterWithLabels(
+			[]string{"scheduler", "job_delete"},
+			1,
+			[]metrics.Label{{Name: "job", Value: jobName}},
+		)
 	}
 }

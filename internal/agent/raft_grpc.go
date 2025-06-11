@@ -18,16 +18,22 @@ type RaftLayer struct {
 }
 
 // NewRaftLayer returns an initialized unencrypted RaftLayer.
-func NewRaftLayer(logger zerolog.Logger) *RaftLayer {
-	return &RaftLayer{logger: logger}
+func NewRaftLayer() *RaftLayer {
+	return &RaftLayer{}
 }
 
 // NewTLSRaftLayer returns an initialized TLS-encrypted RaftLayer.
-func NewTLSRaftLayer(tlsConfig *tls.Config, logger zerolog.Logger) *RaftLayer {
+func NewTLSRaftLayer(tlsConfig *tls.Config) *RaftLayer {
 	return &RaftLayer{
 		TLSConfig: tlsConfig,
-		logger:    logger,
 	}
+}
+
+// WithLogger sets the logger for the RaftLayer.
+func (t *RaftLayer) WithLogger(logger *zerolog.Logger) *RaftLayer {
+	t.logger = logger.Hook()
+
+	return t
 }
 
 // Open opens the RaftLayer, binding to the supplied address.

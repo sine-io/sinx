@@ -10,9 +10,9 @@ import (
 
 // StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
-	if a.Store == nil {
+	if a.JobDB == nil {
 		// set store logger to zerolog
-		storeLogger := &a.Logger
+		storeLogger := &a.logger
 		s, err := NewStore(
 			storeLogger.Hook(
 				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
@@ -21,14 +21,14 @@ func (a *Agent) StartServer() {
 			),
 		)
 		if err != nil {
-			a.Logger.Fatal().Err(err).Msg("sinx: Error initializing store")
+			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 		}
 
-		a.Store = s
+		a.JobDB = s
 	}
 
 	// set schduler logger to zerolog
-	schdLogger := &a.Logger
+	schdLogger := &a.logger
 	a.sched = NewScheduler(
 		schdLogger.Hook(),
 	)
@@ -43,7 +43,7 @@ func (a *Agent) StartServer() {
 	var grpcl, raftl net.Listener
 
 	// set raft layer logger to zerolog
-	raftLayerLogger := &a.Logger
+	raftLayerLogger := &a.logger
 	// If TLS config present listen to TLS
 	if a.TLSConfig != nil {
 		// Create a RaftLayer with TLS
@@ -71,7 +71,7 @@ func (a *Agent) StartServer() {
 
 		go func() {
 			if err := tlsm.Serve(); err != nil {
-				a.Logger.Fatal().Err(err)
+				a.logger.Fatal().Err(err)
 			}
 		}()
 	} else {
@@ -93,7 +93,7 @@ func (a *Agent) StartServer() {
 
 	if a.GRPCServer == nil {
 		// set gRPC server logger to zerolog
-		grpcLogger := &a.Logger
+		grpcLogger := &a.logger
 		a.GRPCServer = NewGRPCServer(
 			a,
 			grpcLogger.Hook(
@@ -105,21 +105,21 @@ func (a *Agent) StartServer() {
 	}
 
 	if err := a.GRPCServer.Serve(grpcl); err != nil {
-		a.Logger.Fatal().Err(err).Msg("agent: RPC server failed to start")
+		a.logger.Fatal().Err(err).Msg("agent: RPC server failed to start")
 	}
 
 	if err := a.raftLayer.Open(raftl); err != nil {
-		a.Logger.Fatal().Err(err).Send()
+		a.logger.Fatal().Err(err).Send()
 	}
 
 	if err := a.setupRaft(); err != nil {
-		a.Logger.Fatal().Err(err).Msg("agent: Raft layer failed to start")
+		a.logger.Fatal().Err(err).Msg("agent: Raft layer failed to start")
 	}
 
 	// Start serving everything
 	go func() {
 		if err := tcpm.Serve(); err != nil {
-			a.Logger.Fatal().Err(err).Send()
+			a.logger.Fatal().Err(err).Send()
 		}
 	}()
 	go a.monitorLeadership()

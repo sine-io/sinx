@@ -294,9 +294,9 @@ func (j *Job) nameHash() int {
 	return hash
 }
 
-// scheduleHash replaces H in the cron spec by a value derived from job Name
+// ScheduleHash replaces H in the cron spec by a value derived from job Name
 // such as "0 0 ~ * * *"
-func (j *Job) scheduleHash() string {
+func (j *Job) ScheduleHash() string {
 	spec := j.Schedule
 
 	if !strings.Contains(spec, HashSymbol) {
@@ -343,7 +343,7 @@ func (j *Job) scheduleHash() string {
 // GetNext returns the job's next schedule from now
 func (j *Job) GetNext() (time.Time, error) {
 	if j.Schedule != "" {
-		s, err := sxextcron.Parse(j.scheduleHash())
+		s, err := sxextcron.Parse(j.ScheduleHash())
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -412,7 +412,7 @@ func (j *Job) Validate() error {
 
 	// Validate schedule, allow empty schedule if parent job set.
 	if j.Schedule != "" || j.ParentJob == "" {
-		if _, err := sxextcron.Parse(j.scheduleHash()); err != nil {
+		if _, err := sxextcron.Parse(j.ScheduleHash()); err != nil {
 			return fmt.Errorf("%s: %s", ErrScheduleParse.Error(), err)
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/rs/zerolog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -18,10 +19,11 @@ import (
 type GRPCClient struct {
 	dialOpt []grpc.DialOption
 	agent   *Agent
+	logger  zerolog.Logger
 }
 
 // NewGRPCClient returns a new instance of the gRPC client.
-func NewGRPCClient(dialOpt grpc.DialOption, agent *Agent) DkronGRPCClient {
+func NewGRPCClient(dialOpt grpc.DialOption, agent *Agent) *GRPCClient {
 	if dialOpt == nil {
 		dialOpt = grpc.WithInsecure()
 	}
@@ -31,7 +33,15 @@ func NewGRPCClient(dialOpt grpc.DialOption, agent *Agent) DkronGRPCClient {
 			grpc.WithBlock(),
 		},
 		agent: agent,
+
+		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
+}
+
+func (grpcc *GRPCClient) WithLogger(logger *zerolog.Logger) *GRPCClient {
+	grpcc.logger = logger.Hook()
+
+	return grpcc
 }
 
 // Connect dialing to a gRPC server
@@ -62,7 +72,7 @@ func (grpcc *GRPCClient) ExecutionDone(addr string, execution *Execution) error 
 	}
 	defer conn.Close()
 
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	edr, err := d.ExecutionDone(context.Background(), &sxproto.ExecutionDoneRequest{Execution: execution.ToProto()})
 	if err != nil {
 		if err.Error() == fmt.Sprintf("rpc error: code = Unknown desc = %s", ErrNotLeader.Error()) {
@@ -107,7 +117,7 @@ func (grpcc *GRPCClient) GetJob(addr, jobName string) (*Job, error) {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	gjr, err := d.GetJob(context.Background(), &sxproto.GetJobRequest{JobName: jobName})
 	if err != nil {
 		grpcc.agent.logger.Error().Err(err).
@@ -138,7 +148,7 @@ func (grpcc *GRPCClient) Leave(addr string) error {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	_, err = d.Leave(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
@@ -172,7 +182,7 @@ func (grpcc *GRPCClient) SetJob(job *Job) error {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	_, err = d.SetJob(context.Background(), &sxproto.SetJobRequest{
 		Job: job.ToProto(),
 	})
@@ -209,7 +219,7 @@ func (grpcc *GRPCClient) DeleteJob(jobName string) (*Job, error) {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	res, err := d.DeleteJob(context.Background(), &sxproto.DeleteJobRequest{
 		JobName: jobName,
 	})
@@ -248,7 +258,7 @@ func (grpcc *GRPCClient) RunJob(jobName string) (*Job, error) {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	res, err := d.RunJob(context.Background(), &sxproto.RunJobRequest{
 		JobName: jobName,
 	})
@@ -285,7 +295,7 @@ func (grpcc *GRPCClient) RaftGetConfiguration(addr string) (*sxproto.RaftGetConf
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	res, err := d.RaftGetConfiguration(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
@@ -318,7 +328,7 @@ func (grpcc *GRPCClient) RaftRemovePeerByID(addr, peerID string) error {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	_, err = d.RaftRemovePeerByID(context.Background(),
 		&sxproto.RaftRemovePeerByIDRequest{Id: peerID},
 	)
@@ -353,7 +363,7 @@ func (grpcc *GRPCClient) GetActiveExecutions(addr string) ([]*sxproto.Execution,
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	gaer, err := d.GetActiveExecutions(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
@@ -388,7 +398,7 @@ func (grpcc *GRPCClient) SetExecution(execution *sxproto.Execution) error {
 	defer conn.Close()
 
 	// Synchronous call
-	d := sxproto.NewDkronClient(conn)
+	d := sxproto.NewSinxClient(conn)
 	_, err = d.SetExecution(context.Background(), execution)
 	if err != nil {
 
