@@ -9,15 +9,15 @@ import (
 
 // Run call the agents to run a job. Returns a job with its new status and next schedule.
 func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
-	job, err := a.Store.GetJob(jobName, nil)
+	job, err := a.JobDB.GetJob(jobName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("agent: Run error retrieving job: %s from store: %w", jobName, err)
 	}
 
 	// In case the job is not a child job, compute the next execution time
 	if job.ParentJob == "" {
-		if ej, ok := a.sched.GetEntryJob(jobName); ok {
-			job.Next = ej.entry.Next
+		if ej, ok := a.sched.GetCronEntryJob(jobName); ok {
+			job.Next = ej.Entry.Next
 			if err := a.applySetJob(job.ToProto()); err != nil {
 				return nil, fmt.Errorf("agent: Run error storing job %s before running: %w", jobName, err)
 			}
@@ -33,7 +33,7 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 		targetNodes = a.getTargetNodes(job.Tags, defaultSelector)
 	} else {
 		// In case of retrying, find the node or return with an error
-		for _, m := range a.Serf.Members() {
+		for _, m := range a.serf.Members() {
 			if ex.NodeName == m.Name {
 				if m.Status == serf.StatusAlive {
 					targetNodes = []Node{m}
@@ -49,7 +49,7 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 	if len(targetNodes) < 1 {
 		return nil, fmt.Errorf("no target nodes found to run job %s", ex.JobName)
 	}
-	a.Logger.Debug().Any("nodes", targetNodes).Msg("agent: Filtered nodes to run")
+	a.logger.Debug().Any("nodes", targetNodes).Msg("agent: Filtered nodes to run")
 
 	var wg sync.WaitGroup
 	for _, v := range targetNodes {
@@ -64,11 +64,11 @@ func (a *Agent) Run(jobName string, ex *Execution) (*Job, error) {
 		go func(node string, wg *sync.WaitGroup) {
 			defer wg.Done()
 
-			a.Logger.Info().Str("jog_name", job.Name).Str("node", node).Msg("agent: Calling AgentRun")
+			a.logger.Info().Str("jog_name", job.Name).Str("node", node).Msg("agent: Calling AgentRun")
 
 			err := a.GRPCClient.AgentRun(node, job.ToProto(), ex.ToProto())
 			if err != nil {
-				a.Logger.Error().Str("job_name", job.Name).Str("node", node).Err(err).Msg("agent: Error calling AgentRun")
+				a.logger.Error().Str("job_name", job.Name).Str("node", node).Err(err).Msg("agent: Error calling AgentRun")
 			}
 		}(addr, &wg)
 	}

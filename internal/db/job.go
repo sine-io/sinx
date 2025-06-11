@@ -1,4 +1,4 @@
-package database
+package db
 
 import (
 	"bytes"
@@ -38,6 +38,12 @@ type kv struct {
 	Key   string
 	Value []byte
 }
+
+type int64arr []int64
+
+func (a int64arr) Len() int           { return len(a) }
+func (a int64arr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a int64arr) Less(i, j int) bool { return a[i] < a[j] }
 
 // BuntJobDB is the local implementation of the JobDB interface.
 // It gives sinx the ability to manipulate its embedded storage
@@ -266,7 +272,7 @@ func (bjd *BuntJobDB) GetJobs(options *sxjob.JobOptions) ([]*sxjob.Job, error) {
 }
 
 // GetJob finds and return a Job from the store
-func (bjd *BuntJobDB) GetJob(name string, options *sxdefi.JobOptions) (*sxjob.Job, error) {
+func (bjd *BuntJobDB) GetJob(name string, options *sxjob.JobOptions) (*sxjob.Job, error) {
 	var pbj sxproto.Job
 
 	err := bjd.db.View(bjd.getJobTxFunc(name, &pbj))
@@ -319,7 +325,7 @@ func (bjd *BuntJobDB) DeleteJob(name string) (*sxjob.Job, error) {
 }
 
 // GetExecutions returns the executions given a Job name.
-func (bjd *BuntJobDB) GetExecutions(jobName string, opts *sxdefi.ExecutionOptions) ([]*Execution, error) {
+func (bjd *BuntJobDB) GetExecutions(jobName string, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
 	prefix := fmt.Sprintf("%s:%s:", executionsPrefix, jobName)
 
 	kvs, err := bjd.list(prefix, true, opts)
@@ -331,13 +337,13 @@ func (bjd *BuntJobDB) GetExecutions(jobName string, opts *sxdefi.ExecutionOption
 }
 
 // GetExecutionGroup returns all executions in the same group of a given execution
-func (bjd *BuntJobDB) GetExecutionGroup(execution *Execution, opts *sxdefi.ExecutionOptions) ([]*Execution, error) {
+func (bjd *BuntJobDB) GetExecutionGroup(execution *sxexec.Execution, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
 	res, err := bjd.GetExecutions(execution.JobName, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	var executions []*Execution
+	var executions []*sxexec.Execution
 	for _, ex := range res {
 		if ex.Group == execution.Group {
 			executions = append(executions, ex)
@@ -348,12 +354,12 @@ func (bjd *BuntJobDB) GetExecutionGroup(execution *Execution, opts *sxdefi.Execu
 
 // GetGroupedExecutions returns executions for a job grouped and with an ordered index
 // to facilitate access.
-func (bjd *BuntJobDB) GetGroupedExecutions(jobName string, opts *sxdefi.ExecutionOptions) (map[int64][]*Execution, []int64, error) {
+func (bjd *BuntJobDB) GetGroupedExecutions(jobName string, opts *sxexec.ExecutionOptions) (map[int64][]*sxexec.Execution, []int64, error) {
 	execs, err := bjd.GetExecutions(jobName, opts)
 	if err != nil {
 		return nil, nil, err
 	}
-	groups := make(map[int64][]*Execution)
+	groups := make(map[int64][]*sxexec.Execution)
 	for _, exec := range execs {
 		groups[exec.Group] = append(groups[exec.Group], exec)
 	}
@@ -369,7 +375,7 @@ func (bjd *BuntJobDB) GetGroupedExecutions(jobName string, opts *sxdefi.Executio
 }
 
 // SetExecution Save a new execution and returns the key of the new saved item or an error.
-func (bjd *BuntJobDB) SetExecution(execution *Execution) (string, error) {
+func (bjd *BuntJobDB) SetExecution(execution *sxexec.Execution) (string, error) {
 	pbe := execution.ToProto()
 	key := fmt.Sprintf("%s:%s:%s", executionsPrefix, execution.JobName, execution.Key())
 
@@ -391,7 +397,7 @@ func (bjd *BuntJobDB) SetExecution(execution *Execution) (string, error) {
 		return "", err
 	}
 
-	execs, err := bjd.GetExecutions(execution.JobName, &sxdefi.ExecutionOptions{})
+	execs, err := bjd.GetExecutions(execution.JobName, &sxexec.ExecutionOptions{})
 	if err != nil && err != buntdb.ErrNotFound {
 		bjd.logger.Error().
 			Err(err).
@@ -595,7 +601,7 @@ func (bjd *BuntJobDB) deleteExecutionsTxFunc(jobName string) func(tx *buntdb.Tx)
 	}
 }
 
-func (bjd *BuntJobDB) list(prefix string, checkRoot bool, opts *sxdefi.ExecutionOptions) ([]kv, error) {
+func (bjd *BuntJobDB) list(prefix string, checkRoot bool, opts *sxexec.ExecutionOptions) ([]kv, error) {
 	var found bool
 	kvs := []kv{}
 
@@ -607,7 +613,7 @@ func (bjd *BuntJobDB) list(prefix string, checkRoot bool, opts *sxdefi.Execution
 	return kvs, err
 }
 
-func (bjd *BuntJobDB) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sxdefi.ExecutionOptions) func(tx *buntdb.Tx) error {
+func (bjd *BuntJobDB) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sxexec.ExecutionOptions) func(tx *buntdb.Tx) error {
 	fnc := func(key, value string) bool {
 		if strings.HasPrefix(key, prefix) {
 			*found = true
@@ -630,8 +636,8 @@ func (bjd *BuntJobDB) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sx
 	}
 }
 
-func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) ([]*Execution, error) {
-	var executions []*Execution
+func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) ([]*sxexec.Execution, error) {
+	var executions []*sxexec.Execution
 	for _, item := range items {
 		var pbe sxproto.Execution
 
@@ -645,7 +651,7 @@ func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) (
 				return nil, err
 			}
 		}
-		execution := NewExecutionFromProto(&pbe)
+		execution := sxexec.NewExecutionFromProto(&pbe)
 		if timezone != nil {
 			execution.FinishedAt = execution.FinishedAt.In(timezone)
 			execution.StartedAt = execution.StartedAt.In(timezone)
@@ -661,7 +667,7 @@ func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx
 	found := false
 	prefix := fmt.Sprintf("%s:%s:", executionsPrefix, jobName)
 
-	if err := bjd.listTxFunc(prefix, &kvs, &found, &sxdefi.ExecutionOptions{})(tx); err != nil {
+	if err := bjd.listTxFunc(prefix, &kvs, &found, &sxexec.ExecutionOptions{})(tx); err != nil {
 		return "", err
 	}
 
@@ -670,7 +676,7 @@ func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx
 		return "", err
 	}
 
-	var executions []*Execution
+	var executions []*sxexec.Execution
 	for _, ex := range execs {
 		if ex.Group == exGroup {
 			executions = append(executions, ex)
@@ -690,11 +696,11 @@ func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx
 	}
 
 	if failed == 0 {
-		status = StatusSuccess
+		status = sxjob.JobStatusSuccess
 	} else if failed > 0 && success == 0 {
-		status = StatusFailed
+		status = sxjob.JobStatusFailed
 	} else if failed > 0 && success > 0 {
-		status = StatusPartiallyFailed
+		status = sxjob.JobStatusPartiallyFailed
 	}
 
 	return status, nil

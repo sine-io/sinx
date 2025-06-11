@@ -10,7 +10,7 @@ func (j *Job) Run() {
 
 	// Check if it's runnable
 	if j.isRunnable() {
-		j.Agent.Logger.Debug().
+		j.logger.Debug().
 			Str("job", j.Name).
 			Str("schedule", j.Schedule).
 			Msg("job: Running job")
@@ -21,7 +21,7 @@ func (j *Job) Run() {
 		ex := NewExecution(j.Name)
 
 		if _, err := j.Agent.Run(j.Name, ex); err != nil {
-			j.Agent.Logger.Error().
+			j.logger.Error().
 				Err(err).
 				Msg("job: Error running job")
 		}

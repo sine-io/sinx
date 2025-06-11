@@ -7,9 +7,9 @@ package agent
 // was participating in leader election or not (local storage).
 // Then actually leave the cluster.
 func StopAgent(a *Agent) error {
-	a.Logger.Info().Msg("agent: Called member stop, now stopping")
+	a.logger.Info().Msg("agent: Called member stop, now stopping")
 
-	if a.Config.Server {
+	if a.config.Server {
 		if a.sched.Started() {
 			<-a.sched.Stop().Done()
 		}
@@ -17,16 +17,16 @@ func StopAgent(a *Agent) error {
 		// TODO: Check why Shutdown().Error() is not working
 		_ = a.raft.Shutdown()
 
-		if err := a.Store.Shutdown(); err != nil {
+		if err := a.JobDB.Shutdown(); err != nil {
 			return err
 		}
 	}
 
-	if err := a.Serf.Leave(); err != nil {
+	if err := a.serf.Leave(); err != nil {
 		return err
 	}
 
-	if err := a.Serf.Shutdown(); err != nil {
+	if err := a.serf.Shutdown(); err != nil {
 		return err
 	}
 

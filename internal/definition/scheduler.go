@@ -9,10 +9,10 @@ import (
 type Scheduler interface {
 	Start(jobs []*sxjob.Job) error
 	Stop() context.Context
+	Restart(jobs []*sxjob.Job)
 	AddJob(job *sxjob.Job) error
 	RemoveJob(jobName string)
-	Restart(jobs []*sxjob.Job)
+	GetCronEntryJob(jobName string) (sxjob.CronEntryJob, bool)
 	ClearCron()
 	Started() bool
-	GetCronEntryJob(jobName string) (sxjob.CronEntryJob, bool)
 }

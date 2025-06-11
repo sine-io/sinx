@@ -258,7 +258,7 @@ func (j *Job) String() string {
 // GetParent returns the parent job of a job
 func (j *Job) GetParent(store *Store) (*Job, error) {
 	if j.Name == j.ParentJob {
-		return nil, sxdefiErrSameParent
+		return nil, ErrSameParent
 	}
 
 	if j.ParentJob == "" {

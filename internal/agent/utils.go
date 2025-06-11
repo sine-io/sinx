@@ -7,18 +7,14 @@ import (
 
 	version "github.com/hashicorp/go-version"
 	"github.com/hashicorp/serf/serf"
+
+	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 var (
 	// projectURL is the project URL.
 	projectURL = "https://dkron.io/"
 )
-
-type int64arr []int64
-
-func (a int64arr) Len() int           { return len(a) }
-func (a int64arr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a int64arr) Less(i, j int) bool { return a[i] < a[j] }
 
 // ServerParts is used to return the parts of a server role
 type ServerParts struct {
@@ -51,7 +47,7 @@ func (s *ServerParts) Copy() *ServerParts {
 
 // UserAgent returns the consistent user-agent string
 func UserAgent() string {
-	return fmt.Sprintf("Dkron/%s (+%s;)", Version, projectURL)
+	return fmt.Sprintf("Dkron/%s (+%s;)", sxconfig.Version, projectURL)
 }
 
 // IsServer Returns if a member is a Dkron server. Returns a boolean,

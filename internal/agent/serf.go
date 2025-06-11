@@ -22,10 +22,10 @@ func (a *Agent) nodeJoin(me serf.MemberEvent) {
 	for _, m := range me.Members {
 		ok, parts := isServer(m)
 		if !ok {
-			a.Logger.Warn().Str("member", m.Name).Msg("non-server in gossip pool")
+			a.logger.Warn().Str("member", m.Name).Msg("non-server in gossip pool")
 			continue
 		}
-		a.Logger.Info().Str("server", parts.Name).Msg("Adding LAN adding server")
+		a.logger.Info().Str("server", parts.Name).Msg("Adding LAN adding server")
 		a.serverLookup.AddServer(parts)
 		// Check if this server is known
 		found := false
@@ -45,13 +45,13 @@ func (a *Agent) nodeJoin(me serf.MemberEvent) {
 		}
 
 		// Check if a local peer
-		if parts.Region == a.Config.Region {
+		if parts.Region == a.config.Region {
 			a.localPeers[raft.ServerAddress(parts.Addr.String())] = parts
 		}
 		a.peerLock.Unlock()
 
 		// If we still expecting to bootstrap, may need to handle this
-		if a.Config.BootstrapExpect != 0 {
+		if a.config.BootstrapExpect != 0 {
 			a.maybeBootstrap()
 		}
 	}
@@ -72,7 +72,7 @@ func (a *Agent) maybeBootstrap() {
 		panic("neither raftInmem or raftStore is initialized")
 	}
 	if err != nil {
-		a.Logger.Error().Err(err).Msg("failed to read last raft index")
+		a.logger.Error().Err(err).Msg("failed to read last raft index")
 
 		return
 	}
@@ -80,12 +80,12 @@ func (a *Agent) maybeBootstrap() {
 	// Bootstrap can only be done if there are no committed logs,
 	// remove our expectations of bootstrapping
 	if index != 0 {
-		a.Config.BootstrapExpect = 0
+		a.config.BootstrapExpect = 0
 		return
 	}
 
 	// Scan for all the known servers
-	members := a.Serf.Members()
+	members := a.serf.Members()
 	var servers []ServerParts
 	voters := 0
 	for _, member := range members {
@@ -93,15 +93,15 @@ func (a *Agent) maybeBootstrap() {
 		if !valid {
 			continue
 		}
-		if p.Region != a.Config.Region {
+		if p.Region != a.config.Region {
 			continue
 		}
-		if p.Expect != 0 && p.Expect != a.Config.BootstrapExpect {
-			a.Logger.Error().Any("member", member).Msg("peer has a conflicting expect value. All nodes should expect the same number")
+		if p.Expect != 0 && p.Expect != a.config.BootstrapExpect {
+			a.logger.Error().Any("member", member).Msg("peer has a conflicting expect value. All nodes should expect the same number")
 			return
 		}
 		if p.Bootstrap {
-			a.Logger.Error().Any("member", member).Msg("peer has bootstrap mode. Expect disabled")
+			a.logger.Error().Any("member", member).Msg("peer has bootstrap mode. Expect disabled")
 			return
 		}
 		if valid {
@@ -111,7 +111,7 @@ func (a *Agent) maybeBootstrap() {
 	}
 
 	// Skip if we haven't met the minimum expect count
-	if voters < a.Config.BootstrapExpect {
+	if voters < a.config.BootstrapExpect {
 		return
 	}
 
@@ -125,7 +125,7 @@ func (a *Agent) maybeBootstrap() {
 			if err != nil {
 				nextRetry := (1 << attempt) * time.Second
 
-				a.Logger.Error().AnErr("error", err).
+				a.logger.Error().AnErr("error", err).
 					Str("server", server.Name).
 					Str("retry_interval", nextRetry.String()).
 					Msg("Failed to confirm peer status for server (will retry).")
@@ -151,9 +151,9 @@ func (a *Agent) maybeBootstrap() {
 		// correctness because no server in the existing cluster will vote
 		// for this server, but it makes things much more stable.
 		if len(peers) > 0 {
-			a.Logger.Info().Str("server", server.Name).Msg("Existing Raft peers reported by server, disabling bootstrap mode")
+			a.logger.Info().Str("server", server.Name).Msg("Existing Raft peers reported by server, disabling bootstrap mode")
 
-			a.Config.BootstrapExpect = 0
+			a.config.BootstrapExpect = 0
 			return
 		}
 	}
@@ -175,14 +175,14 @@ func (a *Agent) maybeBootstrap() {
 		}
 		configuration.Servers = append(configuration.Servers, peer)
 	}
-	a.Logger.Info().Str("peers", strings.Join(addrs, ",")).Msg("agent: found expected number of peers, attempting to bootstrap cluster...")
+	a.logger.Info().Str("peers", strings.Join(addrs, ",")).Msg("agent: found expected number of peers, attempting to bootstrap cluster...")
 	future := a.raft.BootstrapCluster(configuration)
 	if err := future.Error(); err != nil {
-		a.Logger.Error().Err(err).Msg("agent: failed to bootstrap cluster")
+		a.logger.Error().Err(err).Msg("agent: failed to bootstrap cluster")
 	}
 
 	// Bootstrapping complete, or failed for some reason, don't enter this again
-	a.Config.BootstrapExpect = 0
+	a.config.BootstrapExpect = 0
 }
 
 // nodeFailed is used to handle fail events on the serf cluster
@@ -192,7 +192,7 @@ func (a *Agent) nodeFailed(me serf.MemberEvent) {
 		if !ok {
 			continue
 		}
-		a.Logger.Info().Str("server", parts.String()).Msg("removing server")
+		a.logger.Info().Str("server", parts.String()).Msg("removing server")
 
 		// Remove the server if known
 		a.peerLock.Lock()
@@ -215,7 +215,7 @@ func (a *Agent) nodeFailed(me serf.MemberEvent) {
 		}
 
 		// Check if local peer
-		if parts.Region == a.Config.Region {
+		if parts.Region == a.config.Region {
 			delete(a.localPeers, raft.ServerAddress(parts.Addr.String()))
 		}
 		a.peerLock.Unlock()
@@ -227,7 +227,7 @@ func (a *Agent) nodeFailed(me serf.MemberEvent) {
 // consistent store if we are the current leader.
 func (a *Agent) localMemberEvent(me serf.MemberEvent) {
 	// Do nothing if we are not the leader
-	if !a.Config.Server || !a.IsLeader() {
+	if !a.config.Server || !a.IsLeader() {
 		return
 	}
 
@@ -253,7 +253,7 @@ func (a *Agent) lanNodeUpdate(me serf.MemberEvent) {
 		if !ok {
 			continue
 		}
-		a.Logger.Info().Str("server", parts.String()).Msg("Updating LAN server")
+		a.logger.Info().Str("server", parts.String()).Msg("Updating LAN server")
 
 		// Update server lookup
 		a.serverLookup.AddServer(parts)

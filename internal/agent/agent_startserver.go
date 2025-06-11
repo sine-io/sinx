@@ -4,57 +4,51 @@ import (
 	"crypto/tls"
 	"net"
 
-	"github.com/rs/zerolog"
 	"github.com/soheilhy/cmux"
 )
 
 // StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
-	if a.JobDB == nil {
-		// set store logger to zerolog
-		storeLogger := &a.logger
-		s, err := NewStore(
-			storeLogger.Hook(
-				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-					e.Str("store-xxxxxx", msg)
-				}),
-			),
-		)
-		if err != nil {
-			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
-		}
+	// if a.JobDB == nil {
+	// 	// set store logger to zerolog
+	// 	storeLogger := &a.logger
+	// 	s, err := NewStore(
+	// 		storeLogger.Hook(
+	// 			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+	// 				e.Str("store-xxxxxx", msg)
+	// 			}),
+	// 		),
+	// 	)
+	// 	if err != nil {
+	// 		a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
+	// 	}
 
-		a.JobDB = s
-	}
+	// 	a.JobDB = s
+	// }
 
-	// set schduler logger to zerolog
-	schdLogger := &a.logger
-	a.sched = NewScheduler(
-		schdLogger.Hook(),
-	)
+	// // set schduler logger to zerolog
+	// schdLogger := &a.logger
+	// a.sched = NewScheduler(
+	// 	schdLogger.Hook(),
+	// )
 
-	if a.HTTPTransport == nil {
-		a.HTTPTransport = NewHTTPTransport(a)
-	}
+	// if a.HTTPTransport == nil {
+	// 	a.HTTPTransport = NewHTTPTransport(a)
+	// }
 	a.HTTPTransport.ServeHTTP()
 
 	// Create a cmux object.
 	tcpm := cmux.New(a.listener)
 	var grpcl, raftl net.Listener
 
-	// set raft layer logger to zerolog
-	raftLayerLogger := &a.logger
 	// If TLS config present listen to TLS
 	if a.TLSConfig != nil {
 		// Create a RaftLayer with TLS
 		a.raftLayer = NewTLSRaftLayer(
 			a.TLSConfig,
-			raftLayerLogger.Hook(
-				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-					e.Str("tls-raft-layer-xxxxxx", msg)
-				}),
-			),
 		)
+		// set logger to raft layer
+		a.raftLayer.WithLogger(&a.logger)
 
 		// Match any connection to the recursive mux
 		tlsl := tcpm.Match(cmux.Any())
@@ -76,13 +70,9 @@ func (a *Agent) StartServer() {
 		}()
 	} else {
 		// Declare a plain RaftLayer
-		a.raftLayer = NewRaftLayer(
-			raftLayerLogger.Hook(
-				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-					e.Str("raft-layer-xxxxxx", msg)
-				}),
-			),
-		)
+		a.raftLayer = NewRaftLayer()
+		// set logger to raft layer
+		a.raftLayer.WithLogger(&a.logger)
 
 		// Declare the match for gRPC
 		grpcl = tcpm.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
@@ -91,18 +81,18 @@ func (a *Agent) StartServer() {
 		raftl = tcpm.Match(cmux.Any())
 	}
 
-	if a.GRPCServer == nil {
-		// set gRPC server logger to zerolog
-		grpcLogger := &a.logger
-		a.GRPCServer = NewGRPCServer(
-			a,
-			grpcLogger.Hook(
-				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-					e.Str("grpc-server-xxxxxx", msg)
-				}),
-			),
-		)
-	}
+	// if a.GRPCServer == nil {
+	// 	// set gRPC server logger to zerolog
+	// 	grpcLogger := &a.logger
+	// 	a.GRPCServer = NewGRPCServer(
+	// 		a,
+	// 		grpcLogger.Hook(
+	// 			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
+	// 				e.Str("grpc-server-xxxxxx", msg)
+	// 			}),
+	// 		),
+	// 	)
+	// }
 
 	if err := a.GRPCServer.Serve(grpcl); err != nil {
 		a.logger.Fatal().Err(err).Msg("agent: RPC server failed to start")
@@ -122,6 +112,8 @@ func (a *Agent) StartServer() {
 			a.logger.Fatal().Err(err).Send()
 		}
 	}()
+
 	go a.monitorLeadership()
+
 	a.startReporter()
 }
