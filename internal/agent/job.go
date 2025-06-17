@@ -1,4 +1,4 @@
-package job
+package agent
 
 import (
 	"errors"
@@ -138,10 +138,7 @@ type Job struct {
 	// The job will not be executed after this time.
 	ExpiresAt sxntime.NullableTime `json:"expires_at"`
 
-	// TODO:
-	executor JobExecutor    `json:"-"`
-	logger   zerolog.Logger `json:"-"`
-	storage  JobStorage     `json:"-"`
+	logger zerolog.Logger `json:"-"`
 }
 
 // NewJobFromProto create a new Job from a PB Job struct

@@ -1,4 +1,4 @@
-package job
+package agent
 
 // Run the job
 func (j *Job) Run() {
