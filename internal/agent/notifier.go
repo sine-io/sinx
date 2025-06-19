@@ -17,20 +17,21 @@ import (
 	"github.com/rs/zerolog"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxexec "github.com/sine-io/sinx/internal/execution"
 )
 
 // Notifier represents a new notification to be sent by any of the available notificators
 type notifier struct {
 	Config         *sxconfig.Config
 	Job            *Job
-	Execution      *Execution
-	ExecutionGroup []*Execution
+	Execution      *sxexec.Execution
+	ExecutionGroup []*sxexec.Execution
 
 	logger zerolog.Logger
 }
 
 // NewNotifier returns a new notifier
-func SendPreNotifications(config *sxconfig.Config, execution *Execution, exGroup []*Execution, job *Job, logger zerolog.Logger) error {
+func SendPreNotifications(config *sxconfig.Config, execution *sxexec.Execution, exGroup []*sxexec.Execution, job *Job, logger zerolog.Logger) error {
 	var werr error
 
 	n := &notifier{
@@ -56,7 +57,7 @@ func SendPreNotifications(config *sxconfig.Config, execution *Execution, exGroup
 }
 
 // Send sends the notifications using any configured method
-func SendPostNotifications(config *sxconfig.Config, execution *Execution, exGroup []*Execution, job *Job, logger zerolog.Logger) error {
+func SendPostNotifications(config *sxconfig.Config, execution *sxexec.Execution, exGroup []*sxexec.Execution, job *Job, logger zerolog.Logger) error {
 	n := &notifier{
 		logger: logger,
 

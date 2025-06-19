@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	sxexec "github.com/sine-io/sinx/internal/execution"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
 )
@@ -129,7 +130,7 @@ func (grpcs *GRPCServer) GetJob(ctx context.Context, getJobReq *sxproto.GetJobRe
 	defer metrics.MeasureSince([]string{"grpc", "get_job"}, time.Now())
 	grpcs.logger.Debug().Str("job", getJobReq.JobName).Msg("grpc: Received GetJob")
 
-	j, err := grpcs.agent.Store.GetJob(getJobReq.JobName, nil)
+	j, err := grpcs.agent.JobDB.GetJob(getJobReq.JobName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -159,13 +160,13 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 	// Forward the request to the leader in case current node is not the leader.
 	if !grpcs.agent.IsLeader() {
 		addr := grpcs.agent.raft.Leader()
-		grpcs.agent.GRPCClient.ExecutionDone(string(addr), NewExecutionFromProto(execDoneReq.Execution))
+		grpcs.agent.GRPCClient.ExecutionDone(string(addr), sxexec.NewExecutionFromProto(execDoneReq.Execution))
 		return nil, ErrNotLeader
 	}
 
 	// This is the leader at this point, so process the execution, encode the value and apply the log to the cluster.
 	// Get the defined output types for the job, and call them
-	job, err := grpcs.agent.Store.GetJob(execDoneReq.Execution.JobName, nil)
+	job, err := grpcs.agent.JobDB.GetJob(execDoneReq.Execution.JobName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +193,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 	}
 
 	// Retrieve the fresh, updated job from the store to work on stored values
-	job, err = grpcs.agent.Store.GetJob(job.Name, nil)
+	job, err = grpcs.agent.JobDB.GetJob(job.Name, nil)
 	if err != nil {
 		grpcs.logger.Error().
 			Err(err).
@@ -204,7 +205,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 
 	// If the execution failed, retry it until retries limit (default: don't retry)
 	// Don't retry if the status is unknown
-	execution := NewExecutionFromProto(&pbex)
+	execution := sxexec.NewExecutionFromProto(&pbex)
 	if !execution.Success &&
 		uint(execution.Attempt) < job.Retries+1 &&
 		!strings.HasPrefix(execution.Output, ErrBrokenStream.Error()) {
@@ -223,7 +224,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 
 		time.Sleep(eb)
 
-		if _, err := grpcs.agent.Run(job.Name, execution); err != nil {
+		if _, err := grpcs.agent.RunAgent(job.Name, execution); err != nil {
 			return nil, err
 		}
 
@@ -233,8 +234,8 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 		}, nil
 	}
 
-	exg, err := grpcs.agent.Store.GetExecutionGroup(execution,
-		&ExecutionOptions{
+	exg, err := grpcs.agent.JobDB.GetExecutionGroup(execution,
+		&sxexec.ExecutionOptions{
 			Timezone: job.GetTimeLocation(),
 		},
 	)
@@ -254,9 +255,9 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 
 	// Jobs that have dependent jobs are a bit more expensive because we need to call the Status() method for every execution.
 	// Check first if there's dependent jobs and then check for the job status to begin execution dependent jobs on success.
-	if len(job.DependentJobs) > 0 && job.Status == StatusSuccess {
+	if len(job.DependentJobs) > 0 && job.Status == JobStatusSuccess {
 		for _, djn := range job.DependentJobs {
-			dj, err := grpcs.agent.Store.GetJob(djn, nil)
+			dj, err := grpcs.agent.JobDB.GetJob(djn, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -266,7 +267,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 		}
 	}
 
-	if job.Ephemeral && job.Status == StatusSuccess {
+	if job.Ephemeral && job.Status == JobStatusSuccess {
 		if _, err := grpcs.DeleteJob(ctx, &sxproto.DeleteJobRequest{JobName: job.Name}); err != nil {
 			return nil, err
 		}
@@ -284,13 +285,13 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 
 // Leave calls the Stop method, stopping everything in the server
 func (grpcs *GRPCServer) Leave(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
-	return in, grpcs.agent.Stop()
+	return in, grpcs.agent.StopAgent()
 }
 
 // RunJob runs a job in the cluster
 func (grpcs *GRPCServer) RunJob(ctx context.Context, req *sxproto.RunJobRequest) (*sxproto.RunJobResponse, error) {
-	ex := NewExecution(req.JobName)
-	job, err := grpcs.agent.Run(req.JobName, ex)
+	ex := sxexec.NewExecution(req.JobName)
+	job, err := grpcs.agent.RunAgent(req.JobName, ex)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +316,7 @@ func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.E
 
 	// Index the information about the servers.
 	serverMap := make(map[raft.ServerAddress]serf.Member)
-	for _, member := range grpcs.agent.serf.Members() {
+	for _, member := range grpcs.agent.Serf.Members() {
 		valid, parts := isServer(member)
 		if !valid {
 			continue

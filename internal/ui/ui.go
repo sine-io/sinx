@@ -88,13 +88,13 @@ func (h *HTTPTransport) UI(r *gin.RouterGroup, aclEnabled bool) {
 				ln = l.Name
 			}
 			ctx.HTML(http.StatusOK, "index.html", gin.H{
-				"DKRON_API_URL":          fmt.Sprintf("../%s", apiPathPrefix),
-				"DKRON_LEADER":           ln,
-				"DKRON_TOTAL_JOBS":       totalJobs,
-				"DKRON_FAILED_JOBS":      failedJobs,
-				"DKRON_UNTRIGGERED_JOBS": untriggeredJobs,
-				"DKRON_SUCCESSFUL_JOBS":  successfulJobs,
-				"DKRON_ACL_ENABLED":      aclEnabled,
+				"SINX_API_URL":          fmt.Sprintf("../%s", apiPathPrefix),
+				"SINX_LEADER":           ln,
+				"SINX_TOTAL_JOBS":       totalJobs,
+				"SINX_FAILED_JOBS":      failedJobs,
+				"SINX_UNTRIGGERED_JOBS": untriggeredJobs,
+				"SINX_SUCCESSFUL_JOBS":  successfulJobs,
+				"SINX_ACL_ENABLED":      aclEnabled,
 			})
 		}
 	})

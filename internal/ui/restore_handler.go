@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	sxjob "github.com/sine-io/sinx/internal/job"
+	sxagent "github.com/sine-io/sinx/internal/agent"
 )
 
 // Restore jobs from file.
@@ -25,20 +25,20 @@ func (h *HTTPTransport) restoreHandler(c *gin.Context) {
 		return
 	}
 
-	var jobs []*sxjob.Job
+	var jobs []*sxagent.Job
 	err = json.Unmarshal(data, &jobs)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 
-	jobTree, err := sxjob.GenerateJobTree(jobs)
+	jobTree, err := sxagent.GenerateJobTree(jobs)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 
-	result := sxjob.RecursiveSetJob(jobTree)
+	result := sxagent.RecursiveSetJob(jobTree)
 	resp, err := json.Marshal(result)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusBadRequest, err)

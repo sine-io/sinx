@@ -1,11 +1,15 @@
 package agent
 
+import (
+	sxexec "github.com/sine-io/sinx/internal/execution"
+)
+
 // Run the job
 func (j *Job) Run() {
 	// As this function should comply with the Job interface of the cron package we will use
 	// the agent property on execution, this is why it need to check if it's set and otherwise fail.
 	if j.Agent == nil {
-		j.Agent.Logger.Fatal().Msg("job: agent not set")
+		j.logger.Fatal().Msg("job: agent not set")
 	}
 
 	// Check if it's runnable
@@ -18,9 +22,9 @@ func (j *Job) Run() {
 		cronInspect.Set(j.Name, j)
 
 		// Simple execution wrapper
-		ex := NewExecution(j.Name)
+		ex := sxexec.NewExecution(j.Name)
 
-		if _, err := j.Agent.Run(j.Name, ex); err != nil {
+		if _, err := j.Agent.RunAgent(j.Name, ex); err != nil {
 			j.logger.Error().
 				Err(err).
 				Msg("job: Error running job")

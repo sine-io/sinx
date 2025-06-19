@@ -1,4 +1,4 @@
-package definition
+package agent
 
 import (
 	"net"
@@ -6,7 +6,6 @@ import (
 	"google.golang.org/grpc"
 
 	sxexec "github.com/sine-io/sinx/internal/execution"
-	sxjob "github.com/sine-io/sinx/internal/job"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -21,11 +20,11 @@ type SinxGRPCServer interface {
 type SinxGRPCClient interface {
 	Connect(string) (*grpc.ClientConn, error)
 	ExecutionDone(string, *sxexec.Execution) error
-	GetJob(string, string) (*sxjob.Job, error)
-	SetJob(*sxjob.Job) error
-	DeleteJob(string) (*sxjob.Job, error)
+	GetJob(string, string) (*Job, error)
+	SetJob(*Job) error
+	DeleteJob(string) (*Job, error)
 	Leave(string) error
-	RunJob(string) (*sxjob.Job, error)
+	RunJob(string) (*Job, error)
 	RaftGetConfiguration(string) (*sxproto.RaftGetConfigurationResponse, error)
 	RaftRemovePeerByID(string, string) error
 	GetActiveExecutions(string) ([]*sxproto.Execution, error)

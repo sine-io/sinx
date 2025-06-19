@@ -30,7 +30,7 @@ func (a *Agent) nodeJoin(me serf.MemberEvent) {
 		// Check if this server is known
 		found := false
 		a.peerLock.Lock()
-		existing := a.peers[parts.Region]
+		existing := a.Peers[parts.Region]
 		for idx, e := range existing {
 			if e.Name == parts.Name {
 				existing[idx] = parts
@@ -41,7 +41,7 @@ func (a *Agent) nodeJoin(me serf.MemberEvent) {
 
 		// Add ot the list if not known
 		if !found {
-			a.peers[parts.Region] = append(existing, parts)
+			a.Peers[parts.Region] = append(existing, parts)
 		}
 
 		// Check if a local peer
@@ -85,7 +85,7 @@ func (a *Agent) maybeBootstrap() {
 	}
 
 	// Scan for all the known servers
-	members := a.serf.Members()
+	members := a.Serf.Members()
 	var servers []ServerParts
 	voters := 0
 	for _, member := range members {
@@ -196,7 +196,7 @@ func (a *Agent) nodeFailed(me serf.MemberEvent) {
 
 		// Remove the server if known
 		a.peerLock.Lock()
-		existing := a.peers[parts.Region]
+		existing := a.Peers[parts.Region]
 		n := len(existing)
 		for i := 0; i < n; i++ {
 			if existing[i].Name == parts.Name {
@@ -209,9 +209,9 @@ func (a *Agent) nodeFailed(me serf.MemberEvent) {
 
 		// Trim the list there are no known servers in a region
 		if n == 0 {
-			delete(a.peers, parts.Region)
+			delete(a.Peers, parts.Region)
 		} else {
-			a.peers[parts.Region] = existing
+			a.Peers[parts.Region] = existing
 		}
 
 		// Check if local peer

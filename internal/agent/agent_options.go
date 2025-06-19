@@ -5,8 +5,8 @@ import (
 
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
+
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxdefine "github.com/sine-io/sinx/internal/definition"
 )
 
 // WithLogger option to set logger to the agent
@@ -48,21 +48,21 @@ func (a *Agent) WithTransportCredentials(tls *tls.Config) *Agent {
 }
 
 // WithJobDB set job db in the agent
-func (a *Agent) WithJobDB(jdb sxdefine.JobDB) *Agent {
+func (a *Agent) WithJobDB(jdb JobDB) *Agent {
 	a.JobDB = jdb
 
 	return a
 }
 
 // WithRaftStore set raft store in the agent
-func (a *Agent) WithRaftStore(raftStore sxdefine.RaftStore) *Agent {
+func (a *Agent) WithRaftStore(raftStore RaftStore) *Agent {
 	a.raftStore = raftStore
 
 	return a
 }
 
 func (a *Agent) WithSerf(s *serf.Serf) *Agent {
-	a.serf = s
+	a.Serf = s
 
 	return a
 }

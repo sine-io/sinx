@@ -8,13 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 	status "google.golang.org/grpc/status"
 
-	sxjob "github.com/sine-io/sinx/internal/job"
+	sxagent "github.com/sine-io/sinx/internal/agent"
 )
 
 func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := h.agent.JobDB.GetJob(jobName, nil)
 	if err != nil {
 		h.logger.Error().Err(err)
 	}
@@ -55,7 +55,7 @@ func (h *HTTPTransport) jobRunHandler(c *gin.Context) {
 func (h *HTTPTransport) jobToggleHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := h.agent.JobDB.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -83,8 +83,8 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 	order := c.DefaultQuery("_order", "ASC")
 	q := c.Query("q")
 
-	jobs, err := h.agent.Store.GetJobs(
-		&JobOptions{
+	jobs, err := h.agent.JobDB.GetJobs(
+		&sxagent.JobOptions{
 			Metadata: metadata,
 			Sort:     sort,
 			Order:    order,
@@ -121,14 +121,14 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 
 func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	// Init the Job object with defaults
-	job := sxjob.Job{
-		Concurrency: sxjob.ConcurrencyAllow,
+	job := sxagent.Job{
+		Concurrency: sxagent.ConcurrencyAllow,
 	}
 
 	// Check if the job is already in the context set by the middleware
 	val, exists := c.Get("job")
 	if exists {
-		job = val.(sxjob.Job)
+		job = val.(sxagent.Job)
 	} else {
 		// Parse values from JSON
 		if err := c.BindJSON(&job); err != nil {
@@ -154,7 +154,7 @@ func (h *HTTPTransport) jobCreateOrUpdateHandler(c *gin.Context) {
 	// Call gRPC SetJob
 	if err := h.agent.GRPCClient.SetJob(&job); err != nil {
 		s := status.Convert(err)
-		if s.Message() == sxjob.ErrParentJobNotFound.Error() {
+		if s.Message() == sxagent.ErrParentJobNotFound.Error() {
 			c.AbortWithStatus(http.StatusNotFound)
 		} else {
 			c.AbortWithStatus(http.StatusInternalServerError)

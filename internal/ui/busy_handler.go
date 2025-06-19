@@ -6,10 +6,12 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
+	sxexec "github.com/sine-io/sinx/internal/execution"
 )
 
 func (h *HTTPTransport) busyHandler(c *gin.Context) {
-	executions := []*Execution{}
+	executions := []*sxexec.Execution{}
 
 	exs, err := h.agent.GetActiveExecutions()
 	if err != nil {
@@ -18,7 +20,7 @@ func (h *HTTPTransport) busyHandler(c *gin.Context) {
 	}
 
 	for _, e := range exs {
-		executions = append(executions, NewExecutionFromProto(e))
+		executions = append(executions, sxexec.NewExecutionFromProto(e))
 	}
 
 	sort.SliceStable(executions, func(i, j int) bool {

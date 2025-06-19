@@ -1,4 +1,4 @@
-package definition
+package agent
 
 import "github.com/hashicorp/raft"
 

@@ -6,10 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/buntdb"
+
+	sxexec "github.com/sine-io/sinx/internal/execution"
 )
 
 type apiExecution struct {
-	*Execution
+	*sxexec.Execution
 	OutputTruncated bool `json:"output_truncated"`
 }
 
@@ -26,21 +28,21 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 		outputSizeLimit = -1
 	}
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := h.agent.JobDB.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.Store.GetExecutions(job.Name,
-		&ExecutionOptions{
+	executions, err := h.agent.JobDB.GetExecutions(job.Name,
+		&sxexec.ExecutionOptions{
 			Sort:     sort,
 			Order:    order,
 			Timezone: job.GetTimeLocation(),
 		},
 	)
 	if err == buntdb.ErrNotFound {
-		executions = make([]*Execution, 0)
+		executions = make([]*sxexec.Execution, 0)
 	} else if err != nil {
 		h.logger.Error().Err(err)
 		return
@@ -67,14 +69,14 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	jobName := c.Param("job")
 	executionName := c.Param("execution")
 
-	job, err := h.agent.Store.GetJob(jobName, nil)
+	job, err := h.agent.JobDB.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.Store.GetExecutions(job.Name,
-		&ExecutionOptions{
+	executions, err := h.agent.JobDB.GetExecutions(job.Name,
+		&sxexec.ExecutionOptions{
 			Sort:     "",
 			Order:    "",
 			Timezone: job.GetTimeLocation(),

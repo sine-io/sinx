@@ -17,7 +17,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	sxexec "github.com/sine-io/sinx/internal/execution"
-	sxjob "github.com/sine-io/sinx/internal/job"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -91,9 +90,9 @@ func (bjd *BuntJobDB) WithLogger(logger *zerolog.Logger) *BuntJobDB {
 }
 
 // SetJob stores a job in the storage
-func (bjd *BuntJobDB) SetJob(job *sxjob.Job, copyDependentJobs bool) error {
+func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
 	var pbej sxproto.Job
-	var ej *sxjob.Job
+	var ej *Job
 
 	if err := job.Validate(); err != nil {
 		return err
@@ -102,7 +101,7 @@ func (bjd *BuntJobDB) SetJob(job *sxjob.Job, copyDependentJobs bool) error {
 	// Abort if parent not found before committing job to the store
 	if job.ParentJob != "" {
 		if j, _ := bjd.GetJob(job.ParentJob, nil); j == nil {
-			return sxjob.ErrParentJobNotFound
+			return ErrParentJobNotFound
 		}
 	}
 
@@ -113,7 +112,7 @@ func (bjd *BuntJobDB) SetJob(job *sxjob.Job, copyDependentJobs bool) error {
 			return err
 		}
 
-		ej = sxjob.NewJobFromProto(&pbej)
+		ej = NewJobFromProto(&pbej)
 
 		if ej.Name != "" {
 			// When the job runs, these status vars are updated
@@ -228,14 +227,14 @@ func (bjd *BuntJobDB) SetExecutionDone(execution *sxexec.Execution) (bool, error
 }
 
 // GetJobs returns all jobs
-func (bjd *BuntJobDB) GetJobs(options *sxjob.JobOptions) ([]*sxjob.Job, error) {
+func (bjd *BuntJobDB) GetJobs(options *JobOptions) ([]*Job, error) {
 	if options == nil {
-		options = &sxjob.JobOptions{
+		options = &JobOptions{
 			Sort: "name",
 		}
 	}
 
-	jobs := make([]*sxjob.Job, 0)
+	jobs := make([]*Job, 0)
 	jobsFn := func(key, item string) bool {
 		var pbj sxproto.Job
 		// [TODO] This condition is temporary while we migrate to JSON marshalling for jobs
@@ -245,7 +244,7 @@ func (bjd *BuntJobDB) GetJobs(options *sxjob.JobOptions) ([]*sxjob.Job, error) {
 				return false
 			}
 		}
-		job := sxjob.NewJobFromProto(&pbj)
+		job := NewJobFromProto(&pbj)
 
 		if options == nil ||
 			(options.Metadata == nil || len(options.Metadata) == 0 || bjd.jobHasMetadata(job, options.Metadata)) &&
@@ -272,7 +271,7 @@ func (bjd *BuntJobDB) GetJobs(options *sxjob.JobOptions) ([]*sxjob.Job, error) {
 }
 
 // GetJob finds and return a Job from the store
-func (bjd *BuntJobDB) GetJob(name string, options *sxjob.JobOptions) (*sxjob.Job, error) {
+func (bjd *BuntJobDB) GetJob(name string, options *JobOptions) (*Job, error) {
 	var pbj sxproto.Job
 
 	err := bjd.db.View(bjd.getJobTxFunc(name, &pbj))
@@ -280,15 +279,15 @@ func (bjd *BuntJobDB) GetJob(name string, options *sxjob.JobOptions) (*sxjob.Job
 		return nil, err
 	}
 
-	job := sxjob.NewJobFromProto(&pbj)
+	job := NewJobFromProto(&pbj)
 
 	return job, nil
 }
 
 // DeleteJob deletes the given job from the store, along with
 // all its executions and references to it.
-func (bjd *BuntJobDB) DeleteJob(name string) (*sxjob.Job, error) {
-	var job *sxjob.Job
+func (bjd *BuntJobDB) DeleteJob(name string) (*Job, error) {
+	var job *Job
 	err := bjd.db.Update(func(tx *buntdb.Tx) error {
 		// Get the job
 		var pbj sxproto.Job
@@ -301,7 +300,7 @@ func (bjd *BuntJobDB) DeleteJob(name string) (*sxjob.Job, error) {
 		if len(pbj.DependentJobs) > 0 {
 			return ErrDependentJobs
 		}
-		job = sxjob.NewJobFromProto(&pbj)
+		job = NewJobFromProto(&pbj)
 
 		if err := bjd.deleteExecutionsTxFunc(name)(tx); err != nil {
 			return err
@@ -498,7 +497,7 @@ func (bjd *BuntJobDB) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntd
 
 // Removes the given job from its parent.
 // Does nothing if nil is passed as child.
-func (bjd *BuntJobDB) removeFromParent(child *sxjob.Job) error {
+func (bjd *BuntJobDB) removeFromParent(child *Job) error {
 	// Do nothing if no job was given or job has no parent
 	if child == nil || child.ParentJob == "" {
 		return nil
@@ -526,7 +525,7 @@ func (bjd *BuntJobDB) removeFromParent(child *sxjob.Job) error {
 }
 
 // Adds the given job to its parent.
-func (bjd *BuntJobDB) addToParent(child *sxjob.Job) error {
+func (bjd *BuntJobDB) addToParent(child *Job) error {
 	// Do nothing if job has no parent
 	if child.ParentJob == "" {
 		return nil
@@ -696,17 +695,17 @@ func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx
 	}
 
 	if failed == 0 {
-		status = sxjob.JobStatusSuccess
+		status = JobStatusSuccess
 	} else if failed > 0 && success == 0 {
-		status = sxjob.JobStatusFailed
+		status = JobStatusFailed
 	} else if failed > 0 && success > 0 {
-		status = sxjob.JobStatusPartiallyFailed
+		status = JobStatusPartiallyFailed
 	}
 
 	return status, nil
 }
 
-func (bjd *BuntJobDB) jobHasMetadata(job *sxjob.Job, metadata map[string]string) bool {
+func (bjd *BuntJobDB) jobHasMetadata(job *Job, metadata map[string]string) bool {
 	if job == nil || job.Metadata == nil || len(job.Metadata) == 0 {
 		return false
 	}

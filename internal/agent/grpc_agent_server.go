@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	sxexec "github.com/sine-io/sinx/internal/execution"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -36,7 +37,7 @@ func (s *statusAgentHelper) Update(b []byte, c bool) (int64, error) {
 // GRPCAgentServer is the local implementation of the gRPC server interface.
 type GRPCAgentServer struct {
 	sxproto.AgentServer
-	// agent *Agent
+	agent *Agent
 
 	logger zerolog.Logger
 }
@@ -44,7 +45,7 @@ type GRPCAgentServer struct {
 // NewGRPCAgentServer creates and returns an instance of a AgentServer implementation
 func NewGRPCAgentServer(agent *Agent) sxproto.AgentServer {
 	return &GRPCAgentServer{
-		// agent:  agent,
+		agent:  agent,
 		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
 }
@@ -74,7 +75,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 
 	// Send the first update with the initial execution state to be stored in the server
 	execution.StartedAt = timestamppb.Now()
-	execution.NodeName = as.agent.Config.NodeName
+	execution.NodeName = as.agent.config.NodeName
 
 	if err := stream.Send(&sxproto.AgentRunStream{
 		Execution: execution,
@@ -138,7 +139,7 @@ func (as *GRPCAgentServer) AgentRun(req *sxproto.AgentRunRequest, stream sxproto
 		if err != nil {
 			return err
 		}
-		return as.agent.GRPCClient.ExecutionDone(rpcServer, NewExecutionFromProto(execution))
+		return as.agent.GRPCClient.ExecutionDone(rpcServer, sxexec.NewExecutionFromProto(execution))
 	}
 
 	return nil

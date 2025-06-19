@@ -100,7 +100,7 @@ type Job struct {
 	Metadata map[string]string `json:"metadata"`
 
 	// Pointer to the calling agent.
-	// Agent *sxagent.Agent `json:"-"`
+	Agent *Agent `json:"-"`
 
 	// Number of times to retry a job that failed an execution.
 	Retries uint `json:"retries"`
@@ -253,7 +253,7 @@ func (j *Job) String() string {
 }
 
 // GetParent returns the parent job of a job
-func (j *Job) GetParent(store *Store) (*Job, error) {
+func (j *Job) GetParent(store *BuntJobDB) (*Job, error) {
 	if j.Name == j.ParentJob {
 		return nil, ErrSameParent
 	}

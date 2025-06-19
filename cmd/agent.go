@@ -68,10 +68,51 @@ It also runs a web UI.`,
 	},
 }
 
+// initConfig reads in config file and ENV variables if set.
+func initConfig() error {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.SetConfigName("sinx")        // name of config file (without extension)
+		viper.AddConfigPath("/etc/sinx")   // call multiple times to add many search paths
+		viper.AddConfigPath("$HOME/.sinx") // call multiple times to add many search paths
+		viper.AddConfigPath("./config")    // call multiple times to add many search paths
+	}
+
+	viper.SetEnvPrefix("sinx")
+	replacer := strings.NewReplacer("-", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv() // read in environment variables that match
+
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil {
+		return fmt.Errorf("config: Error reading config file: %s", err.Error())
+	}
+
+	if err := viper.Unmarshal(cfg); err != nil {
+		return fmt.Errorf("config: Error unmarshalling config: %s", err.Error())
+	}
+
+	cliTags := viper.GetStringSlice("tag")
+	var tags map[string]string
+
+	if len(cliTags) > 0 {
+		tags, err = UnmarshalTags(cliTags)
+		if err != nil {
+			return fmt.Errorf("config: Error unmarshalling cli tags: %s", err.Error())
+		}
+	} else {
+		tags = viper.GetStringMapString("tags")
+	}
+	cfg.Tags = tags
+
+	return nil
+}
+
 func agentRun(args ...string) error {
 	// 1. init agent with config and logger.
-	agent = sxagent.NewAgent(cfg).
-		WithLogger(&zlog.Logger)
+	agent = sxagent.NewAgent(cfg).WithLogger(&zlog.Logger)
 
 	logger = agent.Logger()
 	// This log statement helps avoid compiler warnings about unused parameters
@@ -90,11 +131,13 @@ func agentRun(args ...string) error {
 	}
 	agent.WithPlugins(plugins)
 
-	// 3.
+	// 3. start the agent
+	// TODO: init all the components of the agent in the StartAgent method.
 	if err := agent.StartAgent(); err != nil {
 		return err
 	}
 
+	// 4. handle signals
 	exit := handleSignals()
 	if exit != 0 {
 		return fmt.Errorf("exit status: %d", exit)
@@ -136,7 +179,7 @@ WAIT:
 	// Attempt a graceful leave
 	logger.Info().Msg("agent: Gracefully shutting down agent...")
 	go func() {
-		if err := sxagent.StopAgent(agent); err != nil {
+		if err := agent.StopAgent(); err != nil {
 			logger.Error().Err(err).Msg("unable to stop agent")
 			return
 		}

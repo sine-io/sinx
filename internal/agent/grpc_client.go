@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	sxexec "github.com/sine-io/sinx/internal/execution"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -57,7 +58,7 @@ func (grpcc *GRPCClient) Connect(addr string) (*grpc.ClientConn, error) {
 }
 
 // ExecutionDone calls the ExecutionDone gRPC method
-func (grpcc *GRPCClient) ExecutionDone(addr string, execution *Execution) error {
+func (grpcc *GRPCClient) ExecutionDone(addr string, execution *sxexec.Execution) error {
 	defer metrics.MeasureSince([]string{"grpc", "call_execution_done"}, time.Now())
 	var conn *grpc.ClientConn
 
@@ -447,7 +448,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 		// Stream ends
 		if err == io.EOF {
 			addr := grpcc.agent.raft.Leader()
-			if err := grpcc.ExecutionDone(string(addr), NewExecutionFromProto(execution)); err != nil {
+			if err := grpcc.ExecutionDone(string(addr), sxexec.NewExecutionFromProto(execution)); err != nil {
 				return err
 			}
 			return nil
@@ -462,7 +463,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 			grpcc.agent.logger.Error().Err(err).Err(ErrBrokenStream).Send()
 
 			addr := grpcc.agent.raft.Leader()
-			if err := grpcc.ExecutionDone(string(addr), NewExecutionFromProto(execution)); err != nil {
+			if err := grpcc.ExecutionDone(string(addr), sxexec.NewExecutionFromProto(execution)); err != nil {
 				return err
 			}
 			return err
@@ -487,7 +488,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 		}
 
 		// Notify the starting of the execution
-		if err := SendPreNotifications(grpcc.agent.config, NewExecutionFromProto(execution), nil, NewJobFromProto(job), grpcc.agent.logger); err != nil {
+		if err := SendPreNotifications(grpcc.agent.config, sxexec.NewExecutionFromProto(execution), nil, NewJobFromProto(job), grpcc.agent.logger); err != nil {
 			grpcc.agent.logger.Error().
 				Err(err).
 				Str("job_name", job.Name).

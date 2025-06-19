@@ -6,7 +6,7 @@ package agent
 // If this is a server and has the scheduler started stop it, ignoring if this server
 // was participating in leader election or not (local storage).
 // Then actually leave the cluster.
-func StopAgent(a *Agent) error {
+func (a *Agent) StopAgent() error {
 	a.logger.Info().Msg("agent: Called member stop, now stopping")
 
 	if a.config.Server {
@@ -22,11 +22,11 @@ func StopAgent(a *Agent) error {
 		}
 	}
 
-	if err := a.serf.Leave(); err != nil {
+	if err := a.Serf.Leave(); err != nil {
 		return err
 	}
 
-	if err := a.serf.Shutdown(); err != nil {
+	if err := a.Serf.Shutdown(); err != nil {
 		return err
 	}
 

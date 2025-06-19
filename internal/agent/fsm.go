@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
+	sxexec "github.com/sine-io/sinx/internal/execution"
 	sxproto "github.com/sine-io/sinx/types"
 )
 
@@ -38,95 +39,105 @@ type LogApplier func(buf []byte, index uint64) any
 type LogAppliers map[MessageType]LogApplier
 
 type raftFSM struct {
-	store Storage
+	store JobDB
 
 	// proAppliers holds the set of pro only LogAppliers
 	proAppliers LogAppliers
-	logger      zerolog.Logger
+
+	logger zerolog.Logger
 }
 
 // newRaftFSM is used to construct a new FSM with a blank state
-func newRaftFSM(store Storage, logAppliers LogAppliers, logger zerolog.Logger) *raftFSM {
+func newRaftFSM(store JobDB, logAppliers LogAppliers) *raftFSM {
 	return &raftFSM{
 		store:       store,
 		proAppliers: logAppliers,
-		logger:      logger,
+
+		// set default logger, you can override it with WithLogger
+		logger: zerolog.New(zerolog.NewConsoleWriter()),
 	}
 }
 
+func (fsm *raftFSM) WithLogger(logger *zerolog.Logger) *raftFSM {
+	fsm.logger = logger.Hook()
+
+	return fsm
+}
+
 // Apply applies a Raft log entry to the key-value store.
-func (d *raftFSM) Apply(l *raft.Log) any {
+func (fsm *raftFSM) Apply(l *raft.Log) any {
 	buf := l.Data
 	msgType := MessageType(buf[0])
 
-	d.logger.Debug().Any("command", msgType).Msg("fsm: received command")
+	fsm.logger.Debug().Any("command", msgType).Msg("fsm: received command")
 
 	switch msgType {
 	case SetJobType:
-		return d.applySetJob(buf[1:])
+		return fsm.applySetJob(buf[1:])
 	case DeleteJobType:
-		return d.applyDeleteJob(buf[1:])
+		return fsm.applyDeleteJob(buf[1:])
 	case ExecutionDoneType:
-		return d.applyExecutionDone(buf[1:])
+		return fsm.applyExecutionDone(buf[1:])
 	case SetExecutionType:
-		return d.applySetExecution(buf[1:])
+		return fsm.applySetExecution(buf[1:])
 	}
 
 	// Check enterprise only message types.
-	if applier, ok := d.proAppliers[msgType]; ok {
+	if applier, ok := fsm.proAppliers[msgType]; ok {
 		return applier(buf[1:], l.Index)
 	}
 
 	return nil
 }
 
-func (d *raftFSM) applySetJob(buf []byte) any {
+func (fsm *raftFSM) applySetJob(buf []byte) any {
 	var pj sxproto.Job
 	if err := proto.Unmarshal(buf, &pj); err != nil {
 		return err
 	}
 	job := NewJobFromProto(&pj)
-	if err := d.store.SetJob(job, false); err != nil {
+	if err := fsm.store.SetJob(job, false); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *raftFSM) applyDeleteJob(buf []byte) any {
+func (fsm *raftFSM) applyDeleteJob(buf []byte) any {
 	var djr sxproto.DeleteJobRequest
 	if err := proto.Unmarshal(buf, &djr); err != nil {
 		return err
 	}
-	job, err := d.store.DeleteJob(djr.GetJobName())
+	job, err := fsm.store.DeleteJob(djr.GetJobName())
 	if err != nil {
 		return err
 	}
 	return job
 }
 
-func (d *raftFSM) applyExecutionDone(buf []byte) interface{} {
+func (fsm *raftFSM) applyExecutionDone(buf []byte) interface{} {
 	var execDoneReq sxproto.ExecutionDoneRequest
 	if err := proto.Unmarshal(buf, &execDoneReq); err != nil {
 		return err
 	}
-	execution := NewExecutionFromProto(execDoneReq.Execution)
+	execution := sxexec.NewExecutionFromProto(execDoneReq.Execution)
 
-	d.logger.Debug().
+	fsm.logger.Debug().
 		Any("execution", execution.Key()).
 		Str("output", string(execution.Output)).
 		Msg("fsm: Setting execution")
-	_, err := d.store.SetExecutionDone(execution)
+
+	_, err := fsm.store.SetExecutionDone(execution)
 
 	return err
 }
 
-func (d *raftFSM) applySetExecution(buf []byte) interface{} {
+func (fsm *raftFSM) applySetExecution(buf []byte) interface{} {
 	var pbex sxproto.Execution
 	if err := proto.Unmarshal(buf, &pbex); err != nil {
 		return err
 	}
-	execution := NewExecutionFromProto(&pbex)
-	key, err := d.store.SetExecution(execution)
+	execution := sxexec.NewExecutionFromProto(&pbex)
+	key, err := fsm.store.SetExecution(execution)
 	if err != nil {
 		return err
 	}
@@ -138,22 +149,23 @@ func (d *raftFSM) applySetExecution(buf []byte) interface{} {
 // Persist encodes the needed data from fsmSnapshot and transport it to
 // Restore where the necessary data is replicated into the finite state machine.
 // This allows the consensus algorithm to truncate the replicated log.
-func (d *raftFSM) Snapshot() (raft.FSMSnapshot, error) {
-	return &fsmSnapshot{store: d.store}, nil
+func (fsm *raftFSM) Snapshot() (raft.FSMSnapshot, error) {
+	return &fsmSnapshot{store: fsm.store}, nil
 }
 
 // Restore stores the key-value store to a previous state.
-func (d *raftFSM) Restore(r io.ReadCloser) error {
+func (fsm *raftFSM) Restore(r io.ReadCloser) error {
 	defer r.Close()
-	return d.store.Restore(r)
+
+	return fsm.store.Restore(r)
 }
 
 type fsmSnapshot struct {
-	store Storage
+	store JobDB
 }
 
-func (d *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
-	if err := d.store.Snapshot(sink); err != nil {
+func (snapshot *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
+	if err := snapshot.store.Snapshot(sink); err != nil {
 		_ = sink.Cancel()
 		return err
 	}
@@ -166,4 +178,4 @@ func (d *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil
 }
 
-func (d *fsmSnapshot) Release() {}
+func (snapshot *fsmSnapshot) Release() {}

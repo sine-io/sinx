@@ -6,7 +6,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 	"github.com/rs/zerolog"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxdefine "github.com/sine-io/sinx/internal/definition"
 	sxlog "github.com/sine-io/sinx/log"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
@@ -61,16 +59,16 @@ type Agent struct {
 	ExecutorPlugins map[string]sxplugin.Executor
 
 	// HTTPTransport is a swappable interface for the HTTP server interface
-	HTTPTransport sxdefine.Transport
+	HTTPTransport Transport
 
 	// JobDB interface to set the job db engine
-	JobDB sxdefine.JobDB
+	JobDB JobDB
 
 	// GRPCServer interface for setting the GRPC server
-	GRPCServer sxdefine.SinxGRPCServer
+	GRPCServer SinxGRPCServer
 
 	// GRPCClient interface for setting the GRPC client
-	GRPCClient sxdefine.SinxGRPCClient
+	GRPCClient SinxGRPCClient
 
 	// TLSConfig allows setting a TLS config for transport
 	TLSConfig *tls.Config
@@ -80,9 +78,9 @@ type Agent struct {
 	MemberEventHandler func(serf.Event)
 	ProAppliers        LogAppliers
 
-	serf        *serf.Serf
+	Serf        *serf.Serf
 	eventCh     chan serf.Event
-	sched       sxdefine.Scheduler
+	sched       Scheduler
 	ready       bool
 	shutdownCh  chan struct{}
 	retryJoinCh chan error
@@ -95,7 +93,7 @@ type Agent struct {
 	// the SinX gRPC transport layer.
 	raftLayer *RaftLayer
 	// raftStore is the store used to persist raft logs and state.
-	raftStore sxdefine.RaftStore
+	raftStore RaftStore
 	// raftInmem is the in-memory store used for development mode.
 	raftInmem *raft.InmemStore
 	// raftTransport is the network transport used by raft to communicate
@@ -108,7 +106,7 @@ type Agent struct {
 
 	// peers is used to track the known SinX servers. This is
 	// used for region forwarding and clustering.
-	peers        map[string][]*ServerParts
+	Peers        map[string][]*ServerParts
 	localPeers   map[raft.ServerAddress]*ServerParts
 	peerLock     sync.RWMutex
 	serverLookup *ServerLookup
@@ -158,13 +156,13 @@ func (a *Agent) RetryJoinCh() <-chan error {
 // The target address should be another node inside the DC
 // listening on the Serf LAN address
 func (a *Agent) JoinLAN(addrs []string) (int, error) {
-	return a.serf.Join(addrs, true)
+	return a.Serf.Join(addrs, true)
 }
 
 // UpdateTags updates the tag configuration for this agent
 func (a *Agent) UpdateTags(tags map[string]string) {
 	// Preserve reserved tags
-	currentTags := a.serf.LocalMember().Tags
+	currentTags := a.Serf.LocalMember().Tags
 	for _, tagName := range []string{"role", "version", "server", "bootstrap", "expect", "port", "rpc_addr"} {
 		if val, exists := currentTags[tagName]; exists {
 			tags[tagName] = val
@@ -174,7 +172,7 @@ func (a *Agent) UpdateTags(tags map[string]string) {
 	tags["region"] = a.config.Region
 
 	// Set new collection of tags
-	err := a.serf.SetTags(tags)
+	err := a.Serf.SetTags(tags)
 	if err != nil {
 		a.logger.Warn().Msgf("Setting tags unsuccessful: %s.", err.Error())
 	}
@@ -266,26 +264,15 @@ func (a *Agent) setupRaft() error {
 				return fmt.Errorf("recovery failed to parse peers.json: %v", err)
 			}
 
-			// set store logger to zerolog
-			storeLogger := &a.logger
-			store, err := NewStore(storeLogger.Hook(
-				zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-					e.Str("store-xxxxxx", msg)
-				}),
-			))
+			store, err := NewBuntJobDB()
 			if err != nil {
 				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 			}
+			// set store logger to zerolog
+			store.WithLogger(&a.logger)
 
 			// set fsm logger to zerolog
-			tmpFsmLogger := &a.logger
-			tmpFsm := newRaftFSM(
-				store, nil,
-				tmpFsmLogger.Hook(
-					zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-						e.Str("tmpFsm-xxxxxx", msg)
-					}),
-				))
+			tmpFsm := newRaftFSM(store, nil).WithLogger(&a.logger)
 
 			if err := raft.RecoverCluster(raftCfg, tmpFsm,
 				logStore, stableStore, snapshots, transport, configuration); err != nil {
@@ -323,15 +310,7 @@ func (a *Agent) setupRaft() error {
 	// Instantiate the Raft systems. The second parameter is a finite state machine
 	// which stores the actual kv pairs and is operated upon through Apply().
 	// set fsm logger to zerolog.
-	fsmLogger := &a.logger
-	fsm := newRaftFSM(
-		a.Store, a.ProAppliers,
-		fsmLogger.Hook(
-			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-				e.Str("fsm-xxxxxx", msg)
-			}),
-		),
-	)
+	fsm := newRaftFSM(a.JobDB, a.ProAppliers).WithLogger(&a.logger)
 
 	rft, err := raft.NewRaft(raftCfg, fsm, logStore, stableStore, snapshots, transport)
 	if err != nil {
@@ -346,7 +325,7 @@ func (a *Agent) setupRaft() error {
 // Utility method to get leader nodename
 func (a *Agent) LeaderMember() (*serf.Member, error) {
 	l := a.raft.Leader()
-	for _, member := range a.serf.Members() {
+	for _, member := range a.Serf.Members() {
 		if member.Tags["rpc_addr"] == string(l) {
 			return &member, nil
 		}
@@ -361,12 +340,12 @@ func (a *Agent) IsLeader() bool {
 
 // Members is used to return the members of the serf cluster
 func (a *Agent) Members() []serf.Member {
-	return a.serf.Members()
+	return a.Serf.Members()
 }
 
 // LocalMember is used to return the local node
 func (a *Agent) LocalMember() serf.Member {
-	return a.serf.LocalMember()
+	return a.Serf.LocalMember()
 }
 
 // Leader is used to return the Raft leader
@@ -376,7 +355,7 @@ func (a *Agent) Leader() raft.ServerAddress {
 
 // Servers returns a list of known server
 func (a *Agent) Servers() (members []*ServerParts) {
-	for _, member := range a.serf.Members() {
+	for _, member := range a.Serf.Members() {
 		ok, parts := isServer(member)
 		if !ok || member.Status != serf.StatusAlive {
 			continue
@@ -388,7 +367,7 @@ func (a *Agent) Servers() (members []*ServerParts) {
 
 // LocalServers returns a list of the local known server
 func (a *Agent) LocalServers() (members []*ServerParts) {
-	for _, member := range a.serf.Members() {
+	for _, member := range a.Serf.Members() {
 		ok, parts := isServer(member)
 		if !ok || member.Status != serf.StatusAlive {
 			continue
@@ -402,7 +381,7 @@ func (a *Agent) LocalServers() (members []*ServerParts) {
 
 // Listens to events from Serf and handle the event.
 func (a *Agent) eventLoop() {
-	serfShutdownCh := a.serf.ShutdownCh()
+	serfShutdownCh := a.Serf.ShutdownCh()
 	a.logger.Info().Msg("agent: Listen for events")
 	for {
 		select {
@@ -452,67 +431,11 @@ func (a *Agent) eventLoop() {
 	}
 }
 
-func (a *Agent) getTargetNodes(tags map[string]string, selectFunc func([]Node) int) []Node {
-	bareTags, cardinality := cleanTags(tags, a.logger)
-	nodes := a.getQualifyingNodes(a.serf.Members(), bareTags)
-
-	return selectNodes(nodes, cardinality, selectFunc)
-}
-
-// getQualifyingNodes returns all nodes in the cluster that are
-// alive, in this agent's region and have all given tags
-func (a *Agent) getQualifyingNodes(nodes []Node, bareTags map[string]string) []Node {
-	// Determine the usable set of nodes
-	qualifiers := filterArray(nodes, func(node Node) bool {
-		return node.Status == serf.StatusAlive &&
-			node.Tags["region"] == a.config.Region &&
-			nodeMatchesTags(node, bareTags)
-	})
-
-	return qualifiers
-}
-
-// The default selector function for getTargetNodes/selectNodes
-func defaultSelector(nodes []Node) int {
-	return rand.IntN(len(nodes)) // sine. use math/rand/v2
-}
-
-// selectNodes selects at most #cardinality from the given nodes using the selectFunc
-func selectNodes(nodes []Node, cardinality int, selectFunc func([]Node) int) []Node {
-	// Return all nodes immediately if they're all going to be selected
-	numNodes := len(nodes)
-	if numNodes <= cardinality {
-		return nodes
-	}
-
-	for ; cardinality > 0; cardinality-- {
-		// Select a node
-		chosenIndex := selectFunc(nodes[:numNodes])
-
-		// Swap picked node with the last one and reduce choices so it can't get picked again
-		nodes[numNodes-1], nodes[chosenIndex] = nodes[chosenIndex], nodes[numNodes-1]
-		numNodes--
-	}
-
-	return nodes[numNodes:]
-}
-
-// Returns all items from an array for which filterFunc returns true,
-func filterArray(arr []Node, filterFunc func(Node) bool) []Node {
-	for i := len(arr) - 1; i >= 0; i-- {
-		if !filterFunc(arr[i]) {
-			arr[i] = arr[len(arr)-1]
-			arr = arr[:len(arr)-1]
-		}
-	}
-	return arr
-}
-
 // This function is called when a client request the RPCAddress
 // of the current member.
 // in marathon, it would return the host's IP and advertise RPC port
 func (a *Agent) advertiseRPCAddr() string {
-	bindIP := a.serf.LocalMember().Addr
+	bindIP := a.Serf.LocalMember().Addr
 	return net.JoinHostPort(bindIP.String(), strconv.Itoa(a.config.AdvertiseRPCPort))
 }
 
