@@ -1,28 +1,20 @@
 package agent
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"expvar"
-	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/devopsfaith/krakend-usage/client"
 	metrics "github.com/hashicorp/go-metrics"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
 
 	sxconfig "github.com/sine-io/sinx/internal/config"
-	sxlog "github.com/sine-io/sinx/log"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
 )
@@ -178,150 +170,6 @@ func (a *Agent) UpdateTags(tags map[string]string) {
 	}
 }
 
-func (a *Agent) setupRaft() error {
-	if a.config.BootstrapExpect > 0 {
-		if a.config.BootstrapExpect == 1 {
-			a.config.Bootstrap = true
-		}
-	}
-
-	transConfig := &raft.NetworkTransportConfig{
-		Stream:                a.raftLayer,
-		MaxPool:               3,
-		Timeout:               raftTimeout,
-		ServerAddressProvider: a.serverLookup,
-		// set raft network logger to zerolog
-		Logger: sxlog.HclogWrapper("raft-net", a.logger.GetLevel().String(), &a.logger),
-	}
-	transport := raft.NewNetworkTransportWithConfig(transConfig)
-	a.raftTransport = transport
-
-	raftCfg := raft.DefaultConfig()
-	// set raft logger to zerolog
-	raftCfg.Logger = sxlog.HclogWrapper("raft", a.logger.GetLevel().String(), &a.logger)
-
-	// Raft performance
-	raftMultiplier := a.config.RaftMultiplier
-	if raftMultiplier < 1 || raftMultiplier > 10 {
-		return fmt.Errorf("raft-multiplier cannot be %d. Must be between 1 and 10", raftMultiplier)
-	}
-	raftCfg.HeartbeatTimeout = raftCfg.HeartbeatTimeout * time.Duration(raftMultiplier)
-	raftCfg.ElectionTimeout = raftCfg.ElectionTimeout * time.Duration(raftMultiplier)
-	raftCfg.LeaderLeaseTimeout = raftCfg.LeaderLeaseTimeout * time.Duration(a.config.RaftMultiplier)
-
-	raftCfg.LocalID = raft.ServerID(a.config.NodeName)
-
-	// Build an all in-memory setup for dev mode, otherwise prepare a full
-	// disk-based setup.
-	var logStore raft.LogStore
-	var stableStore raft.StableStore
-	var snapshots raft.SnapshotStore
-	if a.config.DevMode {
-		store := raft.NewInmemStore()
-		a.raftInmem = store
-		stableStore = store
-		logStore = store
-		snapshots = raft.NewDiscardSnapshotStore()
-	} else {
-		var err error
-		// Create the snapshot store. This allows the Raft to truncate the log to
-		// mitigate the issue of having an unbounded replicated log.
-		// We set the snapshot logger to zerolog
-		snapshots, err = raft.NewFileSnapshotStoreWithLogger(
-			filepath.Join(a.config.DataDir, "raft"), 3,
-			sxlog.HclogWrapper("snapshot", a.logger.GetLevel().String(), &a.logger),
-		)
-		if err != nil {
-			return fmt.Errorf("file snapshot store: %s", err)
-		}
-
-		// Create the BoltDB backend
-		if a.raftStore == nil {
-			s, err := raftboltdb.NewBoltStore(filepath.Join(a.config.DataDir, "raft", "raft.db"))
-			if err != nil {
-				return fmt.Errorf("error creating new raft store: %s", err)
-			}
-			a.raftStore = s
-		}
-		stableStore = a.raftStore
-
-		// Wrap the store in a LogCache to improve performance
-		cacheStore, err := raft.NewLogCache(raftLogCacheSize, a.raftStore)
-		if err != nil {
-			a.raftStore.Close()
-			return err
-		}
-		logStore = cacheStore
-
-		// Check for peers.json file for recovery
-		peersFile := filepath.Join(a.config.DataDir, "raft", "peers.json")
-		if _, err := os.Stat(peersFile); err == nil {
-			a.logger.Info().Msg("found peers.json file, recovering Raft configuration...")
-
-			var configuration raft.Configuration
-			configuration, err = raft.ReadConfigJSON(peersFile)
-			if err != nil {
-				return fmt.Errorf("recovery failed to parse peers.json: %v", err)
-			}
-
-			store, err := NewBuntJobDB()
-			if err != nil {
-				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
-			}
-			// set store logger to zerolog
-			store.WithLogger(&a.logger)
-
-			// set fsm logger to zerolog
-			tmpFsm := newRaftFSM(store, nil).WithLogger(&a.logger)
-
-			if err := raft.RecoverCluster(raftCfg, tmpFsm,
-				logStore, stableStore, snapshots, transport, configuration); err != nil {
-				return fmt.Errorf("recovery failed: %v", err)
-			}
-			if err := os.Remove(peersFile); err != nil {
-				return fmt.Errorf("recovery failed to delete peers.json, please delete manually (see peers.info for details): %v", err)
-			}
-			a.logger.Info().Msg("deleted peers.json file after successful recovery")
-		}
-	}
-
-	// If we are in bootstrap or dev mode and the state is clean then we can
-	// bootstrap now.
-	if a.config.Bootstrap || a.config.DevMode {
-		hasState, err := raft.HasExistingState(logStore, stableStore, snapshots)
-		if err != nil {
-			return err
-		}
-		if !hasState {
-			configuration := raft.Configuration{
-				Servers: []raft.Server{
-					{
-						ID:      raftCfg.LocalID,
-						Address: transport.LocalAddr(),
-					},
-				},
-			}
-			if err := raft.BootstrapCluster(raftCfg, logStore, stableStore, snapshots, transport, configuration); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Instantiate the Raft systems. The second parameter is a finite state machine
-	// which stores the actual kv pairs and is operated upon through Apply().
-	// set fsm logger to zerolog.
-	fsm := newRaftFSM(a.JobDB, a.ProAppliers).WithLogger(&a.logger)
-
-	rft, err := raft.NewRaft(raftCfg, fsm, logStore, stableStore, snapshots, transport)
-	if err != nil {
-		return fmt.Errorf("new raft: %s", err)
-	}
-	a.leaderCh = rft.LeaderCh()
-	a.raft = rft
-
-	return nil
-}
-
 // Utility method to get leader nodename
 func (a *Agent) LeaderMember() (*serf.Member, error) {
 	l := a.raft.Leader()
@@ -469,7 +317,7 @@ func (a *Agent) RaftApply(cmd []byte) raft.ApplyFuture {
 // GetRunningJobs returns amount of active jobs of the local agent
 func (a *Agent) GetRunningJobs() int {
 	job := 0
-	runningExecutions.Range(func(k, v interface{}) bool {
+	runningExecutions.Range(func(k, v any) bool {
 		job = job + 1
 		return true
 	})
@@ -510,31 +358,4 @@ func (a *Agent) CheckAndSelectServer() (string, error) {
 		}
 	}
 	return "", ErrNoSuitableServer
-}
-
-func (a *Agent) startReporter() {
-	if a.config.DisableUsageStats || a.config.DevMode {
-		a.logger.Info().Msg("agent: usage report client disabled")
-		return
-	}
-
-	clusterID, err := a.config.Hash()
-	if err != nil {
-		a.logger.Warn().Msgf("agent: unable to hash the service configuration: %s", err.Error())
-		return
-	}
-
-	go func() {
-		serverID, _ := uuid.GenerateUUID()
-		a.logger.Info().Msgf("agent: registering usage stats for cluster ID '%s'", clusterID)
-
-		if err := client.StartReporter(context.Background(), client.Options{
-			ClusterID: clusterID,
-			ServerID:  serverID,
-			URL:       "https://stats.xxxxxxx.io",
-			Version:   fmt.Sprintf("%s %s", sxconfig.Name, sxconfig.Version),
-		}); err != nil {
-			a.logger.Warn().Msgf("agent: unable to create the usage report client: %s", err.Error())
-		}
-	}()
 }
