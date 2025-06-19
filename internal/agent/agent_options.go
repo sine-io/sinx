@@ -32,6 +32,10 @@ func (a *Agent) WithConfig(config *sxconfig.Config) *Agent {
 	return a
 }
 
+func (a *Agent) Config() *sxconfig.Config {
+	return a.config
+}
+
 // WithPlugins option to set plugins to the agent
 func (a *Agent) WithPlugins(plugins PluginRegistry) *Agent {
 	a.ProcessorPlugins = plugins.Processors
@@ -62,7 +66,21 @@ func (a *Agent) WithRaftStore(raftStore RaftStore) *Agent {
 }
 
 func (a *Agent) WithSerf(s *serf.Serf) *Agent {
-	a.Serf = s
+	a.serf = s
 
 	return a
+}
+
+func (a *Agent) Serf() *serf.Serf {
+	return a.serf
+}
+
+func (a *Agent) WithPeers(prs map[string][]*ServerParts) *Agent {
+	a.peers = prs
+
+	return a
+}
+
+func (a *Agent) Peers() map[string][]*ServerParts {
+	return a.peers
 }

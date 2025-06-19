@@ -78,7 +78,7 @@ type Agent struct {
 	MemberEventHandler func(serf.Event)
 	ProAppliers        LogAppliers
 
-	Serf        *serf.Serf
+	serf        *serf.Serf
 	eventCh     chan serf.Event
 	sched       Scheduler
 	ready       bool
@@ -106,7 +106,7 @@ type Agent struct {
 
 	// peers is used to track the known SinX servers. This is
 	// used for region forwarding and clustering.
-	Peers        map[string][]*ServerParts
+	peers        map[string][]*ServerParts
 	localPeers   map[raft.ServerAddress]*ServerParts
 	peerLock     sync.RWMutex
 	serverLookup *ServerLookup
@@ -156,13 +156,13 @@ func (a *Agent) RetryJoinCh() <-chan error {
 // The target address should be another node inside the DC
 // listening on the Serf LAN address
 func (a *Agent) JoinLAN(addrs []string) (int, error) {
-	return a.Serf.Join(addrs, true)
+	return a.serf.Join(addrs, true)
 }
 
 // UpdateTags updates the tag configuration for this agent
 func (a *Agent) UpdateTags(tags map[string]string) {
 	// Preserve reserved tags
-	currentTags := a.Serf.LocalMember().Tags
+	currentTags := a.serf.LocalMember().Tags
 	for _, tagName := range []string{"role", "version", "server", "bootstrap", "expect", "port", "rpc_addr"} {
 		if val, exists := currentTags[tagName]; exists {
 			tags[tagName] = val
@@ -172,7 +172,7 @@ func (a *Agent) UpdateTags(tags map[string]string) {
 	tags["region"] = a.config.Region
 
 	// Set new collection of tags
-	err := a.Serf.SetTags(tags)
+	err := a.serf.SetTags(tags)
 	if err != nil {
 		a.logger.Warn().Msgf("Setting tags unsuccessful: %s.", err.Error())
 	}
@@ -325,7 +325,7 @@ func (a *Agent) setupRaft() error {
 // Utility method to get leader nodename
 func (a *Agent) LeaderMember() (*serf.Member, error) {
 	l := a.raft.Leader()
-	for _, member := range a.Serf.Members() {
+	for _, member := range a.serf.Members() {
 		if member.Tags["rpc_addr"] == string(l) {
 			return &member, nil
 		}
@@ -340,12 +340,12 @@ func (a *Agent) IsLeader() bool {
 
 // Members is used to return the members of the serf cluster
 func (a *Agent) Members() []serf.Member {
-	return a.Serf.Members()
+	return a.serf.Members()
 }
 
 // LocalMember is used to return the local node
 func (a *Agent) LocalMember() serf.Member {
-	return a.Serf.LocalMember()
+	return a.serf.LocalMember()
 }
 
 // Leader is used to return the Raft leader
@@ -355,7 +355,7 @@ func (a *Agent) Leader() raft.ServerAddress {
 
 // Servers returns a list of known server
 func (a *Agent) Servers() (members []*ServerParts) {
-	for _, member := range a.Serf.Members() {
+	for _, member := range a.serf.Members() {
 		ok, parts := isServer(member)
 		if !ok || member.Status != serf.StatusAlive {
 			continue
@@ -367,7 +367,7 @@ func (a *Agent) Servers() (members []*ServerParts) {
 
 // LocalServers returns a list of the local known server
 func (a *Agent) LocalServers() (members []*ServerParts) {
-	for _, member := range a.Serf.Members() {
+	for _, member := range a.serf.Members() {
 		ok, parts := isServer(member)
 		if !ok || member.Status != serf.StatusAlive {
 			continue
@@ -381,7 +381,7 @@ func (a *Agent) LocalServers() (members []*ServerParts) {
 
 // Listens to events from Serf and handle the event.
 func (a *Agent) eventLoop() {
-	serfShutdownCh := a.Serf.ShutdownCh()
+	serfShutdownCh := a.serf.ShutdownCh()
 	a.logger.Info().Msg("agent: Listen for events")
 	for {
 		select {
@@ -435,7 +435,7 @@ func (a *Agent) eventLoop() {
 // of the current member.
 // in marathon, it would return the host's IP and advertise RPC port
 func (a *Agent) advertiseRPCAddr() string {
-	bindIP := a.Serf.LocalMember().Addr
+	bindIP := a.serf.LocalMember().Addr
 	return net.JoinHostPort(bindIP.String(), strconv.Itoa(a.config.AdvertiseRPCPort))
 }
 

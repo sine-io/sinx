@@ -71,10 +71,10 @@ func (a *Agent) StartAgent() error {
 		a.GRPCClient = NewGRPCClient(nil, a)
 	}
 
-	tags := a.Serf.LocalMember().Tags
+	tags := a.serf.LocalMember().Tags
 	tags["rpc_addr"] = a.advertiseRPCAddr() // Address that clients will use to RPC to servers
 	tags["port"] = strconv.Itoa(a.config.AdvertiseRPCPort)
-	if err := a.Serf.SetTags(tags); err != nil {
+	if err := a.serf.SetTags(tags); err != nil {
 		return fmt.Errorf("agent: Error setting tags: %w", err)
 	}
 
@@ -90,7 +90,7 @@ func (a *Agent) setupCluster() error {
 	if err != nil {
 		return fmt.Errorf("agent: Can not setup serf, %s", err)
 	}
-	a.Serf = s
+	a.serf = s
 
 	// start retry join
 	if len(a.config.RetryJoinLAN) > 0 {
@@ -112,7 +112,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 
 	// Init peer list
 	a.localPeers = make(map[raft.ServerAddress]*ServerParts)
-	a.Peers = make(map[string][]*ServerParts)
+	a.peers = make(map[string][]*ServerParts)
 
 	bindIP, bindPort, err := config.AddrParts(config.BindAddr)
 	if err != nil {
@@ -206,7 +206,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 func (a *Agent) joinSerfCluster(addrs []string, replay bool) (n int, err error) {
 	a.logger.Info().Msgf("agent: joining: %v replay: %v", addrs, replay)
 
-	n, err = a.Serf.Join(addrs, !replay)
+	n, err = a.serf.Join(addrs, !replay)
 	if n > 0 {
 		a.logger.Info().Msgf("agent: joined: %d nodes", n)
 	}

@@ -38,7 +38,7 @@ func (a *Agent) RunAgent(jobName string, ex *sxexec.Execution) (*Job, error) {
 		targetNodes = a.getTargetNodes(job.Tags, defaultSelector)
 	} else {
 		// In case of retrying, find the node or return with an error
-		for _, m := range a.Serf.Members() {
+		for _, m := range a.serf.Members() {
 			if ex.NodeName == m.Name {
 				if m.Status == serf.StatusAlive {
 					targetNodes = []Node{m}
@@ -85,7 +85,7 @@ func (a *Agent) RunAgent(jobName string, ex *sxexec.Execution) (*Job, error) {
 
 func (a *Agent) getTargetNodes(tags map[string]string, selectFunc func([]Node) int) []Node {
 	bareTags, cardinality := a.cleanTags(tags)
-	nodes := a.getQualifyingNodes(a.Serf.Members(), bareTags)
+	nodes := a.getQualifyingNodes(a.serf.Members(), bareTags)
 
 	return selectNodes(nodes, cardinality, selectFunc)
 }

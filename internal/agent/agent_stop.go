@@ -22,11 +22,11 @@ func (a *Agent) StopAgent() error {
 		}
 	}
 
-	if err := a.Serf.Leave(); err != nil {
+	if err := a.serf.Leave(); err != nil {
 		return err
 	}
 
-	if err := a.Serf.Shutdown(); err != nil {
+	if err := a.serf.Shutdown(); err != nil {
 		return err
 	}
 

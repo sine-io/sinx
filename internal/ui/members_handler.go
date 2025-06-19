@@ -12,7 +12,7 @@ import (
 
 func (h *HTTPTransport) membersHandler(c *gin.Context) {
 	mems := []*sxproto.Member{}
-	for _, m := range h.agent.Serf.Members() {
+	for _, m := range h.agent.Serf().Members() {
 		id, _ := uuid.GenerateUUID()
 		mid := &sxproto.Member{
 			Member:     m,

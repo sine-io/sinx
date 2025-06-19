@@ -187,7 +187,7 @@ WAIT:
 func (a *Agent) reconcile() error {
 	defer metrics.MeasureSince([]string{"dkron", "leader", "reconcile"}, time.Now())
 
-	members := a.Serf.Members()
+	members := a.serf.Members()
 	for _, member := range members {
 		if err := a.reconcileMember(member); err != nil {
 			return err
@@ -248,7 +248,7 @@ func (a *Agent) revokeLeadership() error {
 // addRaftPeer is used to add a new Raft peer when a dkron server joins
 func (a *Agent) addRaftPeer(m serf.Member, parts *ServerParts) error {
 	// Check for possibility of multiple bootstrap nodes
-	members := a.Serf.Members()
+	members := a.serf.Members()
 	if parts.Bootstrap {
 		for _, member := range members {
 			valid, p := isServer(member)

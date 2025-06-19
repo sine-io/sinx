@@ -9,28 +9,18 @@ import (
 
 // StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
-	// if a.JobDB == nil {
-	// 	// set store logger to zerolog
-	// 	storeLogger := &a.logger
-	// 	s, err := NewStore(
-	// 		storeLogger.Hook(
-	// 			zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-	// 				e.Str("store-xxxxxx", msg)
-	// 			}),
-	// 		),
-	// 	)
-	// 	if err != nil {
-	// 		a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
-	// 	}
+	if a.JobDB == nil {
+		s, err := NewBuntJobDB()
+		if err != nil {
+			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
+		}
 
-	// 	a.JobDB = s
-	// }
+		// set store logger to zerolog
+		a.JobDB = s.WithLogger(&a.logger)
+	}
 
-	// // set schduler logger to zerolog
-	// schdLogger := &a.logger
-	// a.sched = NewScheduler(
-	// 	schdLogger.Hook(),
-	// )
+	// set schduler logger to zerolog
+	a.sched = NewCronScheduler().WithLogger(&a.logger)
 
 	// if a.HTTPTransport == nil {
 	// 	a.HTTPTransport = NewHTTPTransport(a)

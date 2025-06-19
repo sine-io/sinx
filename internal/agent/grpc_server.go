@@ -316,7 +316,7 @@ func (grpcs *GRPCServer) RaftGetConfiguration(ctx context.Context, in *emptypb.E
 
 	// Index the information about the servers.
 	serverMap := make(map[raft.ServerAddress]serf.Member)
-	for _, member := range grpcs.agent.Serf.Members() {
+	for _, member := range grpcs.agent.serf.Members() {
 		valid, parts := isServer(member)
 		if !valid {
 			continue
