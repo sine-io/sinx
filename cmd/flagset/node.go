@@ -22,7 +22,7 @@ to the given node, specified as key=value`)
 should share a local LAN connection.`)
 
 	cmdFlags.String("region", cfg.Region,
-		`Specifies the region the Dkron agent is a member of. A region typically maps 
+		`Specifies the region the SinX agent is a member of. A region typically maps 
 to a geographic region, for example us, with potentially multiple zones, which 
 map to datacenters such as us-west and us-east`)
 

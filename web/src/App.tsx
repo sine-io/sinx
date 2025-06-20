@@ -14,13 +14,13 @@ import LoginPage from './LoginPage';
 
 declare global {
     interface Window {
-        DKRON_API_URL: string;
-        DKRON_LEADER: string;
-        DKRON_UNTRIGGERED_JOBS: string;
-        DKRON_FAILED_JOBS: string;
-        DKRON_SUCCESSFUL_JOBS: string;
-        DKRON_TOTAL_JOBS: string;
-        DKRON_ACL_ENABLED: boolean;
+        SINX_API_URL: string;
+        SINX_LEADER: string;
+        SINX_UNTRIGGERED_JOBS: string;
+        SINX_FAILED_JOBS: string;
+        SINX_SUCCESSFUL_JOBS: string;
+        SINX_TOTAL_JOBS: string;
+        SINX_ACL_ENABLED: boolean;
     }
 }
 
@@ -29,7 +29,7 @@ const history = createHashHistory();
 export const App = () => <Admin
     dashboard={Dashboard}
     loginPage={LoginPage}
-    authProvider={window.DKRON_ACL_ENABLED ? authProvider : undefined}
+    authProvider={window.SINX_ACL_ENABLED ? authProvider : undefined}
     dataProvider={dataProvider}
     layout={Layout}
 >

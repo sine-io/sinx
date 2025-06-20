@@ -13,7 +13,7 @@ bootstrap-expect: 1
 # log-level: debug
 # tags:
 #   dc: east
-# encrypt: a-valid-key-generated-with-dkron-keygen
+# encrypt: a-valid-key-generated-with-sinx-keygen
 # retry-join:
 #   - provider=aws region=eu-west-1 tag_key=consul tag_value=... access_key_id=... secret_access_key=...
 #   - 10.0.0.1
@@ -35,5 +35,5 @@ bootstrap-expect: 1
 # mail-username": mailuser
 # mail-password": mailpassword
 # mail-from": cron@example.com
-# mail-subject-prefix: [Dkron]
+# mail-subject-prefix: [SinX]
 # cronitor-endpoint: https://cronitor.link/p/XXXXXXXXXXXXXXXXXXXXXXXXXXXX

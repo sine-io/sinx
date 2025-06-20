@@ -28,7 +28,7 @@ Can be specified multiple times.`)
 	cmdFlags.Int("bootstrap-expect", 0,
 		`Provides the number of expected servers in the datacenter. Either this value 
 should not be provided or the value must agree with other servers in the 
-cluster. When provided, Dkron waits until the specified number of servers are 
+cluster. When provided, SinX waits until the specified number of servers are 
 available and then bootstraps the cluster. This allows an initial leader to be 
 elected automatically. This flag requires server mode.`)
 

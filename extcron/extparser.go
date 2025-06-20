@@ -40,7 +40,7 @@ func (p ExtParser) Parse(spec string) (cron.Schedule, error) {
 		return At(date), nil
 	}
 
-	// It's not a dkron specific spec: Let the regular cron schedule parser have it
+	// It's not a sinx specific spec: Let the regular cron schedule parser have it
 	return p.parser.Parse(spec)
 }
 

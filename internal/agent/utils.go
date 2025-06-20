@@ -13,7 +13,7 @@ import (
 
 var (
 	// projectURL is the project URL.
-	projectURL = "https://dkron.io/"
+	projectURL = "https://www.sineio.top/"
 )
 
 // ServerParts is used to return the parts of a server role
@@ -47,13 +47,13 @@ func (s *ServerParts) Copy() *ServerParts {
 
 // UserAgent returns the consistent user-agent string
 func UserAgent() string {
-	return fmt.Sprintf("Dkron/%s (+%s;)", sxconfig.Version, projectURL)
+	return fmt.Sprintf("Sinx/%s (+%s;)", sxconfig.Version, projectURL)
 }
 
-// IsServer Returns if a member is a Dkron server. Returns a boolean,
+// IsServer Returns if a member is a Sinx server. Returns a boolean,
 // and a struct with the various important components
 func isServer(m serf.Member) (bool, *ServerParts) {
-	if m.Tags["role"] != "dkron" {
+	if m.Tags["role"] != "sinx" {
 		return false, nil
 	}
 
@@ -75,7 +75,7 @@ func isServer(m serf.Member) (bool, *ServerParts) {
 			return false, nil
 		}
 	}
-	// TODO
+	// TODO: ?
 	if expect == 1 {
 		bootstrap = true
 	}

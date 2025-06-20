@@ -11,7 +11,7 @@ import (
 )
 
 func (h *HTTPTransport) busyHandler(c *gin.Context) {
-	executions := []*sxexec.Execution{}
+	var executions []*sxexec.Execution
 
 	exs, err := h.agent.GetActiveExecutions()
 	if err != nil {

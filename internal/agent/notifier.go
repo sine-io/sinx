@@ -264,7 +264,7 @@ func (n *notifier) cronitorTelemetry(state string) error {
 	if n.Config.CronitorEndpoint != "" {
 		params := url.Values{}
 		params.Add("host", n.Execution.NodeName)
-		params.Add("message", "Job "+state+" by Dkron")
+		params.Add("message", "Job "+state+" by SinX")
 		params.Add("series", n.Execution.Key())
 
 		if state == "complete" && !n.Execution.Success {

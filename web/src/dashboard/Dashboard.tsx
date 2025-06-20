@@ -39,15 +39,15 @@ const Dashboard = () => (
                 <div style={styles.flex}>
                     <div style={styles.leftCol}>
                         <div style={styles.flex}>
-                            <Leader value={window.DKRON_LEADER || "devel"} />
+                            <Leader value={window.SINX_LEADER || "devel"} />
                             <Spacer />
-                            <TotalJobs value={window.DKRON_TOTAL_JOBS || "0"} />
+                            <TotalJobs value={window.SINX_TOTAL_JOBS || "0"} />
                             <Spacer />
-                            <SuccessfulJobs value={window.DKRON_SUCCESSFUL_JOBS || "0"} />
+                            <SuccessfulJobs value={window.SINX_SUCCESSFUL_JOBS || "0"} />
                             <Spacer />
-                            <FailedJobs value={window.DKRON_FAILED_JOBS || "0"} />
+                            <FailedJobs value={window.SINX_FAILED_JOBS || "0"} />
                             <Spacer />
-                            <UntriggeredJobs value={window.DKRON_UNTRIGGERED_JOBS || "0"} />
+                            <UntriggeredJobs value={window.SINX_UNTRIGGERED_JOBS || "0"} />
                         </div>
                     </div>
                 </div>

@@ -18,8 +18,8 @@ func (h *HTTPTransport) leaderHandler(c *gin.Context) {
 }
 
 func (h *HTTPTransport) isLeaderHandler(c *gin.Context) {
-	isleader := h.agent.IsLeader()
-	if isleader {
+	leader := h.agent.IsLeader()
+	if leader {
 		renderJSON(c, http.StatusOK, "I am a leader")
 	} else {
 		renderJSON(c, http.StatusNotFound, "I am a follower")

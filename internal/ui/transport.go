@@ -9,13 +9,12 @@ import (
 	"github.com/spf13/viper"
 
 	sxagent "github.com/sine-io/sinx/internal/agent"
-	sxconfig "github.com/sine-io/sinx/internal/config"
 )
 
 type HTTPTransport struct {
 	Engine *gin.Engine
-	config *sxconfig.Config
 	agent  *sxagent.Agent
+
 	logger zerolog.Logger
 }
 
@@ -61,14 +60,15 @@ func (h *HTTPTransport) ServeHTTP() {
 
 	h.APIRoutes(rootPath)
 
-	if h.config.UI {
+	config := h.agent.Config()
+	if config.UI {
 		h.UI(rootPath, false)
 	}
 
-	h.logger.Info().Str("address", h.config.HTTPAddr).Msg("api: Running HTTP server")
+	h.logger.Info().Str("address", config.HTTPAddr).Msg("api: Running HTTP server")
 
 	go func() {
-		if err := h.Engine.Run(h.config.HTTPAddr); err != nil {
+		if err := h.Engine.Run(config.HTTPAddr); err != nil {
 			h.logger.Error().Err(err).Msg("api: Error starting HTTP server")
 		}
 	}()

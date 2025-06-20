@@ -11,7 +11,7 @@ import (
 )
 
 // Restore jobs from file.
-// Overwrite job if the job is exist.
+// Overwrite job if the job is existed.
 func (h *HTTPTransport) restoreHandler(c *gin.Context) {
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {

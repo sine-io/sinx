@@ -16,7 +16,7 @@ var peerID string
 
 func init() {
 	raftCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "{{ GetPrivateIP }}:6868", "gRPC address of the agent.")
-	raftRemovePeerCmd.Flags().StringVar(&peerID, "peer-id", "", "Remove a Dkron server with the given ID from the Raft configuration.")
+	raftRemovePeerCmd.Flags().StringVar(&peerID, "peer-id", "", "Remove a SinX server with the given ID from the Raft configuration.")
 
 	raftCmd.AddCommand(raftListCmd)
 	raftCmd.AddCommand(raftRemovePeerCmd)

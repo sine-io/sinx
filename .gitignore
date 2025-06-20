@@ -10,8 +10,8 @@ downloads/
 vendor/
 main
 main.exe
-/dkron-processor-*
-/dkron-executor-*
+/sinx-processor-*
+/sinx-executor-*
 *.log
 dist
 node_modules

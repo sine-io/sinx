@@ -11,9 +11,9 @@ var (
 )
 
 // JobDB is the interface that should be used by any
-// storage engine implemented for dkron. It contains the
+// storage engine implemented for sinx. It contains the
 // minimum set of operations that are needed to have a working
-// dkron store.
+// sinx store.
 type JobDB interface {
 	SetJob(job *Job, copyDependentJobs bool) error
 	DeleteJob(name string) (*Job, error)

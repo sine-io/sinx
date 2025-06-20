@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -41,7 +42,7 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 			Timezone: job.GetTimeLocation(),
 		},
 	)
-	if err == buntdb.ErrNotFound {
+	if errors.Is(err, buntdb.ErrNotFound) {
 		executions = make([]*sxexec.Execution, 0)
 	} else if err != nil {
 		h.logger.Error().Err(err)

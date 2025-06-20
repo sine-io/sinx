@@ -17,11 +17,11 @@ Lower values are used to tighten timing and increase sensitivity while higher
 values relax timings and reduce sensitivity. Tuning this affects the time it 
 takes to detect leader failures and to perform leader elections, at the expense 
 of requiring more network and CPU resources for better performance. By default, 
-Dkron will use a lower-performance timing that's suitable for minimal Dkron 
+Sinx will use a lower-performance timing that's suitable for minimal Sinx 
 servers, currently equivalent to setting this to a value of 5 (this default 
-may be changed in future versions of Dkron, depending if the target minimum 
+may be changed in future versions of Sinx, depending if the target minimum 
 server profile changes). Setting this to a value of 1 will configure Raft to 
-its highest-performance mode is recommended for production Dkron servers. 
+its highest-performance mode is recommended for production Sinx servers. 
 The maximum allowed value is 10.`)
 
 	return cmdFlags

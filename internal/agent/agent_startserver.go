@@ -13,9 +13,10 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
+	"github.com/soheilhy/cmux"
+
 	sxconfig "github.com/sine-io/sinx/internal/config"
 	sxlog "github.com/sine-io/sinx/log"
-	"github.com/soheilhy/cmux"
 )
 
 // StartServer launch a new SinX server process
@@ -30,7 +31,7 @@ func (a *Agent) StartServer() {
 		a.JobDB = s.WithLogger(&a.logger)
 	}
 
-	// set schduler logger to zerolog
+	// set scheduler logger to zerolog
 	a.sched = NewCronScheduler().WithLogger(&a.logger)
 
 	// if a.HTTPTransport == nil {

@@ -32,10 +32,10 @@ func init() {
 
 var docCmd = &cobra.Command{
 	Use:   "doc",
-	Short: "Generate Markdown documentation for the Dkron CLI.",
-	Long: `Generate Markdown documentation for the Dkron CLI.
+	Short: "Generate Markdown documentation for the Sinx CLI.",
+	Long: `Generate Markdown documentation for the Sinx CLI.
 This command is, mostly, used to create up-to-date documentation
-of Dkron's command-line interface for http://dkron.io/.
+of Sinx's command-line interface for http://dkron.io/.
 It creates one Markdown file per command with front matter suitable
 for rendering in Hugo.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,7 +58,7 @@ for rendering in Hugo.`,
 			return "/cli/" + strings.ToLower(base) + "/"
 		}
 
-		fmt.Println("Generating Dkron command-line documentation in", genDocDir, "...")
+		fmt.Println("Generating Sinx command-line documentation in", genDocDir, "...")
 		doc.GenMarkdownTreeCustom(cmd.Root(), genDocDir, prepender, linkHandler)
 		fmt.Println("Done.")
 

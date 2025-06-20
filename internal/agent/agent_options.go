@@ -20,9 +20,9 @@ func (a *Agent) WithLogger(logger *zerolog.Logger) *Agent {
 	return a
 }
 
-// Logger returns the logger struct
-func (a *Agent) Logger() zerolog.Logger {
-	return a.logger
+// Logger returns the pointer to the agent's logger.
+func (a *Agent) Logger() *zerolog.Logger {
+	return &a.logger
 }
 
 // WithConfig option to set config to the agent

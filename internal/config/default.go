@@ -8,7 +8,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-// DefaultBindPort is the default port that dkron will use for Serf communication
+// DefaultBindPort is the default port that sinx will use for Serf communication
 const (
 	DefaultDataDir       string        = "sinx.data"
 	DefaultBindPort      int           = 8946

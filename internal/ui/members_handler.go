@@ -11,7 +11,7 @@ import (
 )
 
 func (h *HTTPTransport) membersHandler(c *gin.Context) {
-	mems := []*sxproto.Member{}
+	var members []*sxproto.Member
 	for _, m := range h.agent.Serf().Members() {
 		id, _ := uuid.GenerateUUID()
 		mid := &sxproto.Member{
@@ -19,8 +19,8 @@ func (h *HTTPTransport) membersHandler(c *gin.Context) {
 			Id:         id,
 			StatusText: m.Status.String(),
 		}
-		mems = append(mems, mid)
+		members = append(members, mid)
 	}
-	c.Header("X-Total-Count", strconv.Itoa(len(mems)))
-	renderJSON(c, http.StatusOK, mems)
+	c.Header("X-Total-Count", strconv.Itoa(len(members)))
+	renderJSON(c, http.StatusOK, members)
 }

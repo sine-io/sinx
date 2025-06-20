@@ -17,6 +17,7 @@ import (
 	sxflagset "github.com/sine-io/sinx/cmd/flagset"
 	sxagent "github.com/sine-io/sinx/internal/agent"
 	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxui "github.com/sine-io/sinx/internal/ui"
 	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
@@ -24,7 +25,7 @@ var (
 	cfgFile string
 	cfg     = sxconfig.DefaultConfig()
 
-	ShutdownCh chan (struct{})
+	ShutdownCh chan struct{}
 	agent      *sxagent.Agent
 
 	logger = zerolog.New(zerolog.NewConsoleWriter())
@@ -114,7 +115,7 @@ func agentRun(args ...string) error {
 	// 1. init agent with config and logger.
 	agent = sxagent.NewAgent(cfg).WithLogger(&zlog.Logger)
 
-	logger = agent.Logger()
+	logger = agent.Logger().Hook()
 	// This log statement helps avoid compiler warnings about unused parameters
 	// as 'args' is not used elsewhere in the function
 	logger.Debug().Msgf("agentRun called with args: %v", args)
@@ -131,13 +132,16 @@ func agentRun(args ...string) error {
 	}
 	agent.WithPlugins(plugins)
 
-	// 3. start the agent
+	// 3. set agent transport
+	agent.HTTPTransport = sxui.NewHTTPTransport(agent).WithLogger(agent.Logger())
+
+	// 4. start the agent
 	// TODO: init all the components of the agent in the StartAgent method.
 	if err := agent.StartAgent(); err != nil {
 		return err
 	}
 
-	// 4. handle signals
+	// 5. handle signals
 	exit := handleSignals()
 	if exit != 0 {
 		return fmt.Errorf("exit status: %d", exit)

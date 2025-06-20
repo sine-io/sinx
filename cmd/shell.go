@@ -15,7 +15,7 @@ func init() {
 var shellCmd = &cobra.Command{
 	Hidden: true,
 	Use:    "shell",
-	Short:  "Shell plugin for dkron",
+	Short:  "Shell plugin for sinx",
 	Long:   ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		plugin.Serve(&plugin.ServeConfig{

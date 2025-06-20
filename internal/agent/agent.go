@@ -42,6 +42,10 @@ var (
 // Node is a shorter, more descriptive name for serf.Member
 type Node = serf.Member
 
+type Transport interface {
+	ServeHTTP()
+}
+
 // Agent is the main struct that represents a SinX agent
 type Agent struct {
 	// ProcessorPlugins maps processor plugins
@@ -65,7 +69,7 @@ type Agent struct {
 	// TLSConfig allows setting a TLS config for transport
 	TLSConfig *tls.Config
 
-	// Pro features
+	// Pro features, TODO: needed?
 	GlobalLock         bool
 	MemberEventHandler func(serf.Event)
 	ProAppliers        LogAppliers

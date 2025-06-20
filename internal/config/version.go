@@ -6,6 +6,6 @@ var (
 	// Version is the current version that will get replaced
 	// on build.
 	Version = "devel"
-	// Codename codename of this series
+	// Codename of this series
 	Codename = "Devel"
 )

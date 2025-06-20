@@ -14,7 +14,7 @@ const (
 // Handshake is the HandshakeConfig used to configure clients and servers.
 var Handshake = goplugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "DKRON_PLUGIN_MAGIC_COOKIE",
+	MagicCookieKey:   "SINX_PLUGIN_MAGIC_COOKIE",
 	MagicCookieValue: "b29a76488b6f3ca7955c5f769b50641f0fcd88748d8cedecda313d516320ca19",
 }
 
