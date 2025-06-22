@@ -8,10 +8,10 @@ import (
 	"github.com/hashicorp/go-metrics/datadog"
 	"github.com/hashicorp/go-metrics/prometheus"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
-func SetupMetrics(config *sxconfig.Config) error {
+func SetupMetrics(config *sxcfg.Config) error {
 	// Setup the inmem sink and signal handler
 	inm := metrics.NewInmemSink(10*time.Second, time.Minute)
 	metrics.DefaultInmemSignal(inm)

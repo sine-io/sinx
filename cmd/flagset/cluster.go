@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 // ClusterFlagSet creates all of our cluster flags.
-func ClusterFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
+func ClusterFlagSet(cfg *sxcfg.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("cluster flagset", flag.ContinueOnError)
 
 	cmdFlags.String("encrypt", "",

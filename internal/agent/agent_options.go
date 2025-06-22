@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 // WithLogger option to set logger to the agent
@@ -26,13 +26,13 @@ func (a *Agent) Logger() *zerolog.Logger {
 }
 
 // WithConfig option to set config to the agent
-func (a *Agent) WithConfig(config *sxconfig.Config) *Agent {
+func (a *Agent) WithConfig(config *sxcfg.Config) *Agent {
 	a.config = config
 
 	return a
 }
 
-func (a *Agent) Config() *sxconfig.Config {
+func (a *Agent) Config() *sxcfg.Config {
 	return a.config
 }
 
@@ -51,9 +51,9 @@ func (a *Agent) WithTransportCredentials(tls *tls.Config) *Agent {
 	return a
 }
 
-// WithJobDB set job db in the agent
-func (a *Agent) WithJobDB(jdb JobDB) *Agent {
-	a.JobDB = jdb
+// WithStorage set the storage in the agent
+func (a *Agent) WithStorage(s Storage) *Agent {
+	a.Storage = s
 
 	return a
 }

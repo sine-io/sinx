@@ -21,9 +21,9 @@ const (
 func DefaultConfig() *Config {
 	hostname, err := os.Hostname()
 	if err != nil {
-		zlog.Panic().Err(err).Send() // TODO: will call os.Exit(1)? if called, hostname will not be 'anonymous'
+		zlog.Panic().Err(err).Send() // hostname will be 'anonymous' if the Panic not called os.exit(1)
 	} else {
-		hostname = "anonymous"
+		hostname = "unknown"
 	}
 
 	tags := map[string]string{}

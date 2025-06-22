@@ -39,7 +39,7 @@ type LogApplier func(buf []byte, index uint64) any
 type LogAppliers map[MessageType]LogApplier
 
 type raftFSM struct {
-	store JobDB
+	store Storage
 
 	// proAppliers holds the set of pro only LogAppliers
 	proAppliers LogAppliers
@@ -48,7 +48,7 @@ type raftFSM struct {
 }
 
 // newRaftFSM is used to construct a new FSM with a blank state
-func newRaftFSM(store JobDB, logAppliers LogAppliers) *raftFSM {
+func newRaftFSM(store Storage, logAppliers LogAppliers) *raftFSM {
 	return &raftFSM{
 		store:       store,
 		proAppliers: logAppliers,
@@ -161,7 +161,7 @@ func (fsm *raftFSM) Restore(r io.ReadCloser) error {
 }
 
 type fsmSnapshot struct {
-	store JobDB
+	store Storage
 }
 
 func (snapshot *fsmSnapshot) Persist(sink raft.SnapshotSink) error {

@@ -9,7 +9,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 
 	sxagent "github.com/sine-io/sinx/internal/agent"
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 var peerID string
@@ -30,7 +30,7 @@ var raftCmd = &cobra.Command{
 	Short: "Command to perform some raft operations",
 	Long:  ``,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		ipa, err := sxconfig.ParseSingleIPTemplate(rpcAddr)
+		ipa, err := sxcfg.ParseSingleIPTemplate(rpcAddr)
 		if err != nil {
 			return err
 		}

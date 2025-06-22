@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	
-	sxconfig "github.com/sine-io/sinx/internal/config"
+
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 func (h *HTTPTransport) indexHandler(c *gin.Context) {
@@ -14,7 +14,7 @@ func (h *HTTPTransport) indexHandler(c *gin.Context) {
 	stats := map[string]map[string]string{
 		"agent": {
 			"name":    local.Name,
-			"version": sxconfig.Version,
+			"version": sxcfg.Version,
 		},
 		"serf": h.agent.Serf().Stats(),
 		"tags": local.Tags,

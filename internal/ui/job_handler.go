@@ -14,7 +14,7 @@ import (
 func (h *HTTPTransport) jobGetHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.JobDB.GetJob(jobName, nil)
+	job, err := h.agent.Storage.GetJob(jobName, nil)
 	if err != nil {
 		h.logger.Error().Err(err)
 	}
@@ -55,7 +55,7 @@ func (h *HTTPTransport) jobRunHandler(c *gin.Context) {
 func (h *HTTPTransport) jobToggleHandler(c *gin.Context) {
 	jobName := c.Param("job")
 
-	job, err := h.agent.JobDB.GetJob(jobName, nil)
+	job, err := h.agent.Storage.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -83,7 +83,7 @@ func (h *HTTPTransport) jobsHandler(c *gin.Context) {
 	order := c.DefaultQuery("_order", "ASC")
 	q := c.Query("q")
 
-	jobs, err := h.agent.JobDB.GetJobs(
+	jobs, err := h.agent.Storage.GetJobs(
 		&sxagent.JobOptions{
 			Metadata: metadata,
 			Sort:     sort,

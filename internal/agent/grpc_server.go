@@ -130,7 +130,7 @@ func (grpcs *GRPCServer) GetJob(ctx context.Context, getJobReq *sxproto.GetJobRe
 	defer metrics.MeasureSince([]string{"grpc", "get_job"}, time.Now())
 	grpcs.logger.Debug().Str("job", getJobReq.JobName).Msg("grpc: Received GetJob")
 
-	j, err := grpcs.agent.JobDB.GetJob(getJobReq.JobName, nil)
+	j, err := grpcs.agent.Storage.GetJob(getJobReq.JobName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 
 	// This is the leader at this point, so process the execution, encode the value and apply the log to the cluster.
 	// Get the defined output types for the job, and call them
-	job, err := grpcs.agent.JobDB.GetJob(execDoneReq.Execution.JobName, nil)
+	job, err := grpcs.agent.Storage.GetJob(execDoneReq.Execution.JobName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 	}
 
 	// Retrieve the fresh, updated job from the store to work on stored values
-	job, err = grpcs.agent.JobDB.GetJob(job.Name, nil)
+	job, err = grpcs.agent.Storage.GetJob(job.Name, nil)
 	if err != nil {
 		grpcs.logger.Error().
 			Err(err).
@@ -234,7 +234,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 		}, nil
 	}
 
-	exg, err := grpcs.agent.JobDB.GetExecutionGroup(execution,
+	exg, err := grpcs.agent.Storage.GetExecutionGroup(execution,
 		&sxexec.ExecutionOptions{
 			Timezone: job.GetTimeLocation(),
 		},
@@ -257,7 +257,7 @@ func (grpcs *GRPCServer) ExecutionDone(ctx context.Context, execDoneReq *sxproto
 	// Check first if there's dependent jobs and then check for the job status to begin execution dependent jobs on success.
 	if len(job.DependentJobs) > 0 && job.Status == JobStatusSuccess {
 		for _, djn := range job.DependentJobs {
-			dj, err := grpcs.agent.JobDB.GetJob(djn, nil)
+			dj, err := grpcs.agent.Storage.GetJob(djn, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -399,7 +399,7 @@ func (grpcs *GRPCServer) GetActiveExecutions(ctx context.Context, in *emptypb.Em
 	defer metrics.MeasureSince([]string{"grpc", "agent_run"}, time.Now())
 
 	var executions []*sxproto.Execution
-	grpcs.agent.activeExecutions.Range(func(k, v interface{}) bool {
+	grpcs.agent.activeExecutions.Range(func(k, v any) bool {
 		e := v.(*sxproto.Execution)
 		executions = append(executions, e)
 		return true

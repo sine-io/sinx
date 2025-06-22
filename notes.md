@@ -14,12 +14,17 @@ git config --global --get https.proxy
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
+scoop install nodejs-lts
+npm install corepack
+corepack enable
+corepack install --global yarn@4.6.0
+
 根据代码库的分析，我可以看到 sinx 项目是一个分布式任务调度系统，各个组件之间有着紧密的关系。以下是对这些核心组件关系的分析：
 
 ## 组件关系分析
 
 1. **Agent**：作为整个系统的核心，协调其他所有组件
-   - 持有 Serf, Raft, Scheduler, JobDB 等实例的引用
+   - 持有 Serf, Raft, Scheduler, Storage 等实例的引用
    - 管理集群成员和领导选举
    - 处理集群间通信和状态同步
 
@@ -33,14 +38,14 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
    - 确保所有节点状态一致
    - 处理日志复制和应用
 
-4. **JobDB**：任务数据存储接口
-   - 通常由 BuntJobDB 实现（基于 BuntDB）
+4. **Storage**：任务数据存储接口
+   - 通常由 BuntdbStore 实现（基于 BuntDB）
    - 存储任务定义和执行历史
    - 提供任务和执行记录的CRUD操作
 
 5. **BuntDB**：底层存储引擎
    - 轻量级内存数据库
-   - JobDB 的具体实现依赖于它
+   - Storage 的具体实现依赖于它
 
 6. **Job**：任务定义
    - 包含任务元数据、调度规则、执行器配置
@@ -53,7 +58,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 8. **Execution**：任务执行实例
    - 记录单次执行的状态和结果
-   - 通过 JobDB 持久化
+   - 通过 Storage 持久化
 
 9. **Plugins**：插件系统
    - **Executor**：执行具体任务的组件
@@ -76,7 +81,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 +-------------------------------------+
 | - serf        | - ProcessorPlugins  |
 | - raft        | - ExecutorPlugins   |
-| - sched       | - JobDB             |
+| - sched       | - Storage             |
 | - GRPCServer  | - GRPCClient        |
 +------+----------------+-------------+
        |                |
@@ -93,9 +98,9 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
               |
               v
 +--------------------+---------+
-|           JobDB              |
+|           Storage              |
 +--------------------+---------+
-| - BuntJobDB (BuntDB实现)     |
+| - BuntdbStore (BuntDB实现)     |
 +------+----------------+------+
        |                |
        v                v
@@ -123,7 +128,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 ## 核心工作流程
 
-1. Agent 启动时初始化各组件（JobDB, Scheduler, Plugins 等）
+1. Agent 启动时初始化各组件（Storage, Scheduler, Plugins 等）
 2. 通过 Serf 加入集群并发现其他节点
 3. 通过 Raft 进行领导选举，确保集群有唯一领导者
 4. 领导者节点管理任务调度和集群状态
@@ -131,7 +136,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 6. 任务执行时，通过 gRPC 发送到合适的节点
 7. 执行节点使用 ExecutorPlugins 执行任务
 8. 执行结果通过 ProcessorPlugins 处理
-9. 执行记录保存到 JobDB（BuntDB）
+9. 执行记录保存到 Storage（BuntDB）
 10. 整个过程中，通过 Raft 确保状态一致性
 
 这种设计实现了高可用、可扩展的分布式任务调度系统，能够在节点故障时保持系统稳定运行。

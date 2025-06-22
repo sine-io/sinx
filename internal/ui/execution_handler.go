@@ -29,13 +29,13 @@ func (h *HTTPTransport) executionsHandler(c *gin.Context) {
 		outputSizeLimit = -1
 	}
 
-	job, err := h.agent.JobDB.GetJob(jobName, nil)
+	job, err := h.agent.Storage.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.JobDB.GetExecutions(job.Name,
+	executions, err := h.agent.Storage.GetExecutions(job.Name,
 		&sxexec.ExecutionOptions{
 			Sort:     sort,
 			Order:    order,
@@ -70,13 +70,13 @@ func (h *HTTPTransport) executionHandler(c *gin.Context) {
 	jobName := c.Param("job")
 	executionName := c.Param("execution")
 
-	job, err := h.agent.JobDB.GetJob(jobName, nil)
+	job, err := h.agent.Storage.GetJob(jobName, nil)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	executions, err := h.agent.JobDB.GetExecutions(job.Name,
+	executions, err := h.agent.Storage.GetExecutions(job.Name,
 		&sxexec.ExecutionOptions{
 			Sort:     "",
 			Order:    "",

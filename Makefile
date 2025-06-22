@@ -26,14 +26,11 @@ clean:
 
 .PHONY: web
 
-web/node_modules: web/package.json
-	cd web; bun install
-	# touch the directory so Make understands it is up to date
-	touch web/node_modules
-
 internal/ui/ui-dist: web/node_modules web/public/* web/src/* web/src/*/*
 	rm -rf internal/ui/ui-dist
-	cd web; yarn build --out-dir ../internal/ui/ui-dist
+	rm -rf web/node_modules
+	cd web; yarn install
+	yarn build --out-dir ../internal/ui/ui-dist
 
 proto: types/sinx.pb.go types/executor.pb.go types/pro.pb.go
 

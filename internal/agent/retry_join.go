@@ -9,7 +9,7 @@ import (
 	discoverk8s "github.com/hashicorp/go-discover/provider/k8s"
 	"github.com/rs/zerolog"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxlog "github.com/sine-io/sinx/log"
 )
 
@@ -102,7 +102,7 @@ func (r *retryJoiner) retryJoin() error {
 				}
 
 			default:
-				ipAddr, err := sxconfig.ParseSingleIPTemplate(addr)
+				ipAddr, err := sxcfg.ParseSingleIPTemplate(addr)
 				if err != nil {
 					r.logger.Error().Err(err).Str("addr", addr).Msg("agent: Error parsing retry-join ip template")
 					continue

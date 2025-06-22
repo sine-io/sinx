@@ -227,7 +227,7 @@ func (a *Agent) establishLeadership(stopCh chan struct{}) error {
 	defer metrics.MeasureSince([]string{"sinx", "leader", "establish_leadership"}, time.Now())
 
 	a.logger.Info().Msg("agent: Starting scheduler")
-	jobs, err := a.JobDB.GetJobs(nil)
+	jobs, err := a.Storage.GetJobs(nil)
 	if err != nil {
 		return err
 	}

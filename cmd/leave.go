@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	sxagent "github.com/sine-io/sinx/internal/agent"
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 func init() {
@@ -21,7 +21,7 @@ var leaveCmd = &cobra.Command{
 	stop running for election, if this server was the leader
 	this will force the cluster to elect a new leader and start a new scheduler.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		ipa, err := sxconfig.ParseSingleIPTemplate(rpcAddr)
+		ipa, err := sxcfg.ParseSingleIPTemplate(rpcAddr)
 		if err != nil {
 			return err
 		}

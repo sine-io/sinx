@@ -44,18 +44,18 @@ func (a int64arr) Len() int           { return len(a) }
 func (a int64arr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a int64arr) Less(i, j int) bool { return a[i] < a[j] }
 
-// BuntJobDB is the local implementation of the JobDB interface.
+// BuntdbStore is the local implementation of the Storage interface.
 // It gives sinx the ability to manipulate its embedded storage
 // BuntDB.
-type BuntJobDB struct {
+type BuntdbStore struct {
 	db   *buntdb.DB
 	lock *sync.Mutex
 
 	logger zerolog.Logger
 }
 
-// NewBuntJobDB creates a new NewBuntJobDB instance.
-func NewBuntJobDB() (*BuntJobDB, error) {
+// NewBuntdbStore creates a new buntdb store instance.
+func NewBuntdbStore() (*BuntdbStore, error) {
 	db, err := buntdb.Open(":memory:")
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func NewBuntJobDB() (*BuntJobDB, error) {
 	_ = db.CreateIndex("last_error", jobsPrefix+":*", buntdb.IndexJSON("last_error"))
 	_ = db.CreateIndex("next", jobsPrefix+":*", buntdb.IndexJSON("next"))
 
-	bunt := &BuntJobDB{
+	bunt := &BuntdbStore{
 		db:   db,
 		lock: &sync.Mutex{},
 		// set default logger, we should use WithLogger to set your own logger.
@@ -82,15 +82,15 @@ func NewBuntJobDB() (*BuntJobDB, error) {
 	return bunt, nil
 }
 
-// WithLogger sets the logger for the BuntJobDB instance.
-func (bjd *BuntJobDB) WithLogger(logger *zerolog.Logger) *BuntJobDB {
-	bjd.logger = logger.Hook()
+// WithLogger sets the logger for the BuntdbStore instance.
+func (bs *BuntdbStore) WithLogger(logger *zerolog.Logger) *BuntdbStore {
+	bs.logger = logger.Hook()
 
-	return bjd
+	return bs
 }
 
 // SetJob stores a job in the storage
-func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
+func (bs *BuntdbStore) SetJob(job *Job, copyDependentJobs bool) error {
 	var pbej sxproto.Job
 	var ej *Job
 
@@ -100,14 +100,14 @@ func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
 
 	// Abort if parent not found before committing job to the store
 	if job.ParentJob != "" {
-		if j, _ := bjd.GetJob(job.ParentJob, nil); j == nil {
+		if j, _ := bs.GetJob(job.ParentJob, nil); j == nil {
 			return ErrParentJobNotFound
 		}
 	}
 
-	err := bjd.db.Update(func(tx *buntdb.Tx) error {
+	err := bs.db.Update(func(tx *buntdb.Tx) error {
 		// Get if the requested job already exist
-		err := bjd.getJobTxFunc(job.Name, &pbej)(tx)
+		err := bs.getJobTxFunc(job.Name, &pbej)(tx)
 		if err != nil && err != buntdb.ErrNotFound {
 			return err
 		}
@@ -150,7 +150,7 @@ func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
 		}
 
 		pbj := job.ToProto()
-		if err := bjd.setJobTxFunc(pbj)(tx); err != nil {
+		if err := bs.setJobTxFunc(pbj)(tx); err != nil {
 			return err
 		}
 
@@ -162,10 +162,10 @@ func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
 
 	// If the parent job changed update the parents of the old (if any) and new jobs
 	if job.ParentJob != ej.ParentJob {
-		if err := bjd.removeFromParent(ej); err != nil {
+		if err := bs.removeFromParent(ej); err != nil {
 			return err
 		}
-		if err := bjd.addToParent(job); err != nil {
+		if err := bs.addToParent(job); err != nil {
 			return err
 		}
 	}
@@ -175,16 +175,16 @@ func (bjd *BuntJobDB) SetJob(job *Job, copyDependentJobs bool) error {
 
 // SetExecutionDone saves the execution and updates the job with the corresponding
 // results
-func (bjd *BuntJobDB) SetExecutionDone(execution *sxexec.Execution) (bool, error) {
-	err := bjd.db.Update(func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) SetExecutionDone(execution *sxexec.Execution) (bool, error) {
+	err := bs.db.Update(func(tx *buntdb.Tx) error {
 		// Load the job from the store
 		var pbj sxproto.Job
-		if err := bjd.getJobTxFunc(execution.JobName, &pbj)(tx); err != nil {
+		if err := bs.getJobTxFunc(execution.JobName, &pbj)(tx); err != nil {
 			if err == buntdb.ErrNotFound {
-				bjd.logger.Warn().Err(ErrExecutionDoneForDeletedJob).Send()
+				bs.logger.Warn().Err(ErrExecutionDoneForDeletedJob).Send()
 				return ErrExecutionDoneForDeletedJob
 			}
-			bjd.logger.Fatal().Err(err).Send()
+			bs.logger.Fatal().Err(err).Send()
 			return err
 		}
 
@@ -192,7 +192,7 @@ func (bjd *BuntJobDB) SetExecutionDone(execution *sxexec.Execution) (bool, error
 
 		// Save the execution to store
 		pbe := execution.ToProto()
-		if err := bjd.setExecutionTxFunc(key, pbe)(tx); err != nil {
+		if err := bs.setExecutionTxFunc(key, pbe)(tx); err != nil {
 			return err
 		}
 
@@ -206,20 +206,20 @@ func (bjd *BuntJobDB) SetExecutionDone(execution *sxexec.Execution) (bool, error
 			pbj.ErrorCount++
 		}
 
-		status, err := bjd.computeStatus(pbj.Name, pbe.Group, tx)
+		status, err := bs.computeStatus(pbj.Name, pbe.Group, tx)
 		if err != nil {
 			return err
 		}
 		pbj.Status = status
 
-		if err := bjd.setJobTxFunc(&pbj)(tx); err != nil {
+		if err := bs.setJobTxFunc(&pbj)(tx); err != nil {
 			return err
 		}
 
 		return nil
 	})
 	if err != nil {
-		bjd.logger.Error().Err(err).Msg("store: Error in SetExecutionDone")
+		bs.logger.Error().Err(err).Msg("store: Error in SetExecutionDone")
 		return false, err
 	}
 
@@ -227,7 +227,7 @@ func (bjd *BuntJobDB) SetExecutionDone(execution *sxexec.Execution) (bool, error
 }
 
 // GetJobs returns all jobs
-func (bjd *BuntJobDB) GetJobs(options *JobOptions) ([]*Job, error) {
+func (bs *BuntdbStore) GetJobs(options *JobOptions) ([]*Job, error) {
 	if options == nil {
 		options = &JobOptions{
 			Sort: "name",
@@ -247,17 +247,18 @@ func (bjd *BuntJobDB) GetJobs(options *JobOptions) ([]*Job, error) {
 		job := NewJobFromProto(&pbj)
 
 		if options == nil ||
-			(options.Metadata == nil || len(options.Metadata) == 0 || bjd.jobHasMetadata(job, options.Metadata)) &&
+			(len(options.Metadata) == 0 || bs.jobHasMetadata(job, options.Metadata)) &&
 				(options.Query == "" || strings.Contains(job.Name, options.Query) || strings.Contains(job.DisplayName, options.Query)) &&
 				(options.Disabled == "" || strconv.FormatBool(job.Disabled) == options.Disabled) &&
 				((options.Status == "untriggered" && job.Status == "") || (options.Status == "" || job.Status == options.Status)) {
 
 			jobs = append(jobs, job)
 		}
+
 		return true
 	}
 
-	err := bjd.db.View(func(tx *buntdb.Tx) error {
+	err := bs.db.View(func(tx *buntdb.Tx) error {
 		var err error
 		if options.Order == "DESC" {
 			err = tx.Descend(options.Sort, jobsFn)
@@ -271,10 +272,10 @@ func (bjd *BuntJobDB) GetJobs(options *JobOptions) ([]*Job, error) {
 }
 
 // GetJob finds and return a Job from the store
-func (bjd *BuntJobDB) GetJob(name string, options *JobOptions) (*Job, error) {
+func (bs *BuntdbStore) GetJob(name string, options *JobOptions) (*Job, error) {
 	var pbj sxproto.Job
 
-	err := bjd.db.View(bjd.getJobTxFunc(name, &pbj))
+	err := bs.db.View(bs.getJobTxFunc(name, &pbj))
 	if err != nil {
 		return nil, err
 	}
@@ -286,12 +287,12 @@ func (bjd *BuntJobDB) GetJob(name string, options *JobOptions) (*Job, error) {
 
 // DeleteJob deletes the given job from the store, along with
 // all its executions and references to it.
-func (bjd *BuntJobDB) DeleteJob(name string) (*Job, error) {
+func (bs *BuntdbStore) DeleteJob(name string) (*Job, error) {
 	var job *Job
-	err := bjd.db.Update(func(tx *buntdb.Tx) error {
+	err := bs.db.Update(func(tx *buntdb.Tx) error {
 		// Get the job
 		var pbj sxproto.Job
-		if err := bjd.getJobTxFunc(name, &pbj)(tx); err != nil {
+		if err := bs.getJobTxFunc(name, &pbj)(tx); err != nil {
 			return err
 		}
 		// Check if the job has dependent jobs
@@ -302,7 +303,7 @@ func (bjd *BuntJobDB) DeleteJob(name string) (*Job, error) {
 		}
 		job = NewJobFromProto(&pbj)
 
-		if err := bjd.deleteExecutionsTxFunc(name)(tx); err != nil {
+		if err := bs.deleteExecutionsTxFunc(name)(tx); err != nil {
 			return err
 		}
 
@@ -315,7 +316,7 @@ func (bjd *BuntJobDB) DeleteJob(name string) (*Job, error) {
 
 	// If the transaction succeeded, remove from parent
 	if job.ParentJob != "" {
-		if err := bjd.removeFromParent(job); err != nil {
+		if err := bs.removeFromParent(job); err != nil {
 			return nil, err
 		}
 	}
@@ -324,20 +325,20 @@ func (bjd *BuntJobDB) DeleteJob(name string) (*Job, error) {
 }
 
 // GetExecutions returns the executions given a Job name.
-func (bjd *BuntJobDB) GetExecutions(jobName string, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
+func (bs *BuntdbStore) GetExecutions(jobName string, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
 	prefix := fmt.Sprintf("%s:%s:", executionsPrefix, jobName)
 
-	kvs, err := bjd.list(prefix, true, opts)
+	kvs, err := bs.list(prefix, true, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return bjd.unmarshalExecutions(kvs, opts.Timezone)
+	return bs.unmarshalExecutions(kvs, opts.Timezone)
 }
 
 // GetExecutionGroup returns all executions in the same group of a given execution
-func (bjd *BuntJobDB) GetExecutionGroup(execution *sxexec.Execution, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
-	res, err := bjd.GetExecutions(execution.JobName, opts)
+func (bs *BuntdbStore) GetExecutionGroup(execution *sxexec.Execution, opts *sxexec.ExecutionOptions) ([]*sxexec.Execution, error) {
+	res, err := bs.GetExecutions(execution.JobName, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +354,8 @@ func (bjd *BuntJobDB) GetExecutionGroup(execution *sxexec.Execution, opts *sxexe
 
 // GetGroupedExecutions returns executions for a job grouped and with an ordered index
 // to facilitate access.
-func (bjd *BuntJobDB) GetGroupedExecutions(jobName string, opts *sxexec.ExecutionOptions) (map[int64][]*sxexec.Execution, []int64, error) {
-	execs, err := bjd.GetExecutions(jobName, opts)
+func (bs *BuntdbStore) GetGroupedExecutions(jobName string, opts *sxexec.ExecutionOptions) (map[int64][]*sxexec.Execution, []int64, error) {
+	execs, err := bs.GetExecutions(jobName, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -374,21 +375,21 @@ func (bjd *BuntJobDB) GetGroupedExecutions(jobName string, opts *sxexec.Executio
 }
 
 // SetExecution Save a new execution and returns the key of the new saved item or an error.
-func (bjd *BuntJobDB) SetExecution(execution *sxexec.Execution) (string, error) {
+func (bs *BuntdbStore) SetExecution(execution *sxexec.Execution) (string, error) {
 	pbe := execution.ToProto()
 	key := fmt.Sprintf("%s:%s:%s", executionsPrefix, execution.JobName, execution.Key())
 
-	bjd.logger.Debug().
+	bs.logger.Debug().
 		Str("job", execution.JobName).
 		Str("execution", key).
 		Str("finished", execution.FinishedAt.String()).
 		Msg("store: Setting key")
 
-	err := bjd.db.Update(bjd.setExecutionTxFunc(key, pbe))
+	err := bs.db.Update(bs.setExecutionTxFunc(key, pbe))
 
 	if err != nil {
 
-		bjd.logger.Debug().
+		bs.logger.Debug().
 			Str("job", execution.JobName).
 			Str("execution", key).
 			Msg("store: Failed to set key")
@@ -396,9 +397,9 @@ func (bjd *BuntJobDB) SetExecution(execution *sxexec.Execution) (string, error) 
 		return "", err
 	}
 
-	execs, err := bjd.GetExecutions(execution.JobName, &sxexec.ExecutionOptions{})
+	execs, err := bs.GetExecutions(execution.JobName, &sxexec.ExecutionOptions{})
 	if err != nil && err != buntdb.ErrNotFound {
-		bjd.logger.Error().
+		bs.logger.Error().
 			Err(err).
 			Str("job", execution.JobName).
 			Msg("store: Error getting executions for job")
@@ -412,18 +413,18 @@ func (bjd *BuntJobDB) SetExecution(execution *sxexec.Execution) (string, error) 
 		})
 
 		for i := 0; i < len(execs)-MaxExecutions; i++ {
-			bjd.logger.Debug().
+			bs.logger.Debug().
 				Str("job", execs[i].JobName).
 				Str("execution", execs[i].Key()).
 				Msg("store: to delete key")
 
-			err = bjd.db.Update(func(tx *buntdb.Tx) error {
+			err = bs.db.Update(func(tx *buntdb.Tx) error {
 				k := fmt.Sprintf("%s:%s:%s", executionsPrefix, execs[i].JobName, execs[i].Key())
 				_, err := tx.Delete(k)
 				return err
 			})
 			if err != nil {
-				bjd.logger.Error().
+				bs.logger.Error().
 					Err(err).
 					Str("execution", execs[i].Key()).
 					Msg("store: Error trying to delete overflowed execution")
@@ -435,27 +436,27 @@ func (bjd *BuntJobDB) SetExecution(execution *sxexec.Execution) (string, error) 
 }
 
 // Shutdown close the KV store
-func (bjd *BuntJobDB) Shutdown() error {
-	return bjd.db.Close()
+func (bs *BuntdbStore) Shutdown() error {
+	return bs.db.Close()
 }
 
 // Snapshot creates a backup of the data stored in BuntDB
-func (bjd *BuntJobDB) Snapshot(w io.WriteCloser) error {
-	return bjd.db.Save(w)
+func (bs *BuntdbStore) Snapshot(w io.WriteCloser) error {
+	return bs.db.Save(w)
 }
 
 // Restore load data created with backup in to Bunt
-func (bjd *BuntJobDB) Restore(r io.ReadCloser) error {
-	return bjd.db.Load(r)
+func (bs *BuntdbStore) Restore(r io.ReadCloser) error {
+	return bs.db.Load(r)
 }
 
 // DB is the getter for the BuntDB instance
 // TODO: unused.
-func (bjd *BuntJobDB) DB() *buntdb.DB {
-	return bjd.db
+func (bs *BuntdbStore) DB() *buntdb.DB {
+	return bs.db
 }
 
-func (bjd *BuntJobDB) setJobTxFunc(pbj *sxproto.Job) func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) setJobTxFunc(pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		jobKey := fmt.Sprintf("%s:%s", jobsPrefix, pbj.Name)
 
@@ -463,7 +464,7 @@ func (bjd *BuntJobDB) setJobTxFunc(pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 		if err != nil {
 			return err
 		}
-		bjd.logger.Debug().Str("job", pbj.Name).Msg("store: Setting job")
+		bs.logger.Debug().Str("job", pbj.Name).Msg("store: Setting job")
 
 		if _, _, err := tx.Set(jobKey, string(jb), nil); err != nil {
 			return err
@@ -474,7 +475,7 @@ func (bjd *BuntJobDB) setJobTxFunc(pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 }
 
 // This will allow reuse this code to avoid nesting transactions
-func (bjd *BuntJobDB) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		item, err := tx.Get(fmt.Sprintf("%s:%s", jobsPrefix, name))
 		if err != nil {
@@ -489,7 +490,7 @@ func (bjd *BuntJobDB) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntd
 			}
 		}
 
-		bjd.logger.Debug().Str("job", pbj.Name).Msg("store: Retrieved job from datastore")
+		bs.logger.Debug().Str("job", pbj.Name).Msg("store: Retrieved job from datastore")
 
 		return nil
 	}
@@ -497,13 +498,13 @@ func (bjd *BuntJobDB) getJobTxFunc(name string, pbj *sxproto.Job) func(tx *buntd
 
 // Removes the given job from its parent.
 // Does nothing if nil is passed as child.
-func (bjd *BuntJobDB) removeFromParent(child *Job) error {
+func (bs *BuntdbStore) removeFromParent(child *Job) error {
 	// Do nothing if no job was given or job has no parent
 	if child == nil || child.ParentJob == "" {
 		return nil
 	}
 
-	parent, err := child.GetParent(bjd)
+	parent, err := child.GetParent(bs)
 	if err != nil {
 		return err
 	}
@@ -517,7 +518,7 @@ func (bjd *BuntJobDB) removeFromParent(child *Job) error {
 		}
 	}
 	parent.DependentJobs = djs
-	if err := bjd.SetJob(parent, false); err != nil {
+	if err := bs.SetJob(parent, false); err != nil {
 		return err
 	}
 
@@ -525,26 +526,26 @@ func (bjd *BuntJobDB) removeFromParent(child *Job) error {
 }
 
 // Adds the given job to its parent.
-func (bjd *BuntJobDB) addToParent(child *Job) error {
+func (bs *BuntdbStore) addToParent(child *Job) error {
 	// Do nothing if job has no parent
 	if child.ParentJob == "" {
 		return nil
 	}
 
-	parent, err := child.GetParent(bjd)
+	parent, err := child.GetParent(bs)
 	if err != nil {
 		return err
 	}
 
 	parent.DependentJobs = append(parent.DependentJobs, child.Name)
-	if err := bjd.SetJob(parent, false); err != nil {
+	if err := bs.SetJob(parent, false); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (bjd *BuntJobDB) setExecutionTxFunc(key string, pbe *sxproto.Execution) func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) setExecutionTxFunc(key string, pbe *sxproto.Execution) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		// Get previous execution
 		i, err := tx.Get(key)
@@ -579,7 +580,7 @@ func (bjd *BuntJobDB) setExecutionTxFunc(key string, pbe *sxproto.Execution) fun
 }
 
 // deleteExecutionsTxFunc removes all executions of a job
-func (bjd *BuntJobDB) deleteExecutionsTxFunc(jobName string) func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) deleteExecutionsTxFunc(jobName string) func(tx *buntdb.Tx) error {
 	return func(tx *buntdb.Tx) error {
 		var delkeys []string
 		prefix := fmt.Sprintf("%s:%s", executionsPrefix, jobName)
@@ -600,11 +601,11 @@ func (bjd *BuntJobDB) deleteExecutionsTxFunc(jobName string) func(tx *buntdb.Tx)
 	}
 }
 
-func (bjd *BuntJobDB) list(prefix string, checkRoot bool, opts *sxexec.ExecutionOptions) ([]kv, error) {
+func (bs *BuntdbStore) list(prefix string, checkRoot bool, opts *sxexec.ExecutionOptions) ([]kv, error) {
 	var found bool
 	kvs := []kv{}
 
-	err := bjd.db.View(bjd.listTxFunc(prefix, &kvs, &found, opts))
+	err := bs.db.View(bs.listTxFunc(prefix, &kvs, &found, opts))
 	if err == nil && !found && checkRoot {
 		return nil, buntdb.ErrNotFound
 	}
@@ -612,7 +613,7 @@ func (bjd *BuntJobDB) list(prefix string, checkRoot bool, opts *sxexec.Execution
 	return kvs, err
 }
 
-func (bjd *BuntJobDB) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sxexec.ExecutionOptions) func(tx *buntdb.Tx) error {
+func (bs *BuntdbStore) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sxexec.ExecutionOptions) func(tx *buntdb.Tx) error {
 	fnc := func(key, value string) bool {
 		if strings.HasPrefix(key, prefix) {
 			*found = true
@@ -635,7 +636,7 @@ func (bjd *BuntJobDB) listTxFunc(prefix string, kvs *[]kv, found *bool, opts *sx
 	}
 }
 
-func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) ([]*sxexec.Execution, error) {
+func (bs *BuntdbStore) unmarshalExecutions(items []kv, timezone *time.Location) ([]*sxexec.Execution, error) {
 	var executions []*sxexec.Execution
 	for _, item := range items {
 		var pbe sxproto.Execution
@@ -644,7 +645,7 @@ func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) (
 		// so we can use BuntDb indexes. To be removed in future versions.
 		if err := proto.Unmarshal([]byte(item.Value), &pbe); err != nil {
 			if err := json.Unmarshal(item.Value, &pbe); err != nil {
-				bjd.logger.Debug().Err(err).Str("key", item.Key).
+				bs.logger.Debug().Err(err).Str("key", item.Key).
 					Msg("store: error unmarshaling JSON")
 
 				return nil, err
@@ -660,17 +661,17 @@ func (bjd *BuntJobDB) unmarshalExecutions(items []kv, timezone *time.Location) (
 	return executions, nil
 }
 
-func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx) (string, error) {
+func (bs *BuntdbStore) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx) (string, error) {
 	// compute job status based on execution group
 	kvs := []kv{}
 	found := false
 	prefix := fmt.Sprintf("%s:%s:", executionsPrefix, jobName)
 
-	if err := bjd.listTxFunc(prefix, &kvs, &found, &sxexec.ExecutionOptions{})(tx); err != nil {
+	if err := bs.listTxFunc(prefix, &kvs, &found, &sxexec.ExecutionOptions{})(tx); err != nil {
 		return "", err
 	}
 
-	execs, err := bjd.unmarshalExecutions(kvs, nil)
+	execs, err := bs.unmarshalExecutions(kvs, nil)
 	if err != nil {
 		return "", err
 	}
@@ -705,7 +706,7 @@ func (bjd *BuntJobDB) computeStatus(jobName string, exGroup int64, tx *buntdb.Tx
 	return status, nil
 }
 
-func (bjd *BuntJobDB) jobHasMetadata(job *Job, metadata map[string]string) bool {
+func (bs *BuntdbStore) jobHasMetadata(job *Job, metadata map[string]string) bool {
 	if job == nil || job.Metadata == nil || len(job.Metadata) == 0 {
 		return false
 	}

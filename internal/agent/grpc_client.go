@@ -64,7 +64,7 @@ func (grpcc *GRPCClient) ExecutionDone(addr string, execution *sxexec.Execution)
 
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
-		grpcc.agent.logger.Err(err).
+		grpcc.logger.Err(err).
 			Str("method", "ExecutionDone").
 			Str("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -77,11 +77,11 @@ func (grpcc *GRPCClient) ExecutionDone(addr string, execution *sxexec.Execution)
 	edr, err := d.ExecutionDone(context.Background(), &sxproto.ExecutionDoneRequest{Execution: execution.ToProto()})
 	if err != nil {
 		if err.Error() == fmt.Sprintf("rpc error: code = Unknown desc = %s", ErrNotLeader.Error()) {
-			grpcc.agent.logger.Info().Msg("grpc: ExecutionDone forwarded to the leader")
+			grpcc.logger.Info().Msg("grpc: ExecutionDone forwarded to the leader")
 			return nil
 		}
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "ExecutionDone").
 			Str("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -89,7 +89,7 @@ func (grpcc *GRPCClient) ExecutionDone(addr string, execution *sxexec.Execution)
 		return err
 	}
 
-	grpcc.agent.logger.Debug().
+	grpcc.logger.Debug().
 		Str("method", "ExecutionDone").
 		Str("server_addr", addr).
 		Str("from", edr.From).
@@ -108,7 +108,7 @@ func (grpcc *GRPCClient) GetJob(addr, jobName string) (*Job, error) {
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "GetJob").
 			Str("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -121,7 +121,7 @@ func (grpcc *GRPCClient) GetJob(addr, jobName string) (*Job, error) {
 	d := sxproto.NewSinxClient(conn)
 	gjr, err := d.GetJob(context.Background(), &sxproto.GetJobRequest{JobName: jobName})
 	if err != nil {
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "GetJob").
 			Str("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -139,7 +139,7 @@ func (grpcc *GRPCClient) Leave(addr string) error {
 	// Initiate a connection with the server
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "Leave").
 			Str("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -153,7 +153,7 @@ func (grpcc *GRPCClient) Leave(addr string) error {
 	_, err = d.Leave(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "Leave").
 			Str("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -173,7 +173,7 @@ func (grpcc *GRPCClient) SetJob(job *Job) error {
 	// Initiate a connection with the server
 	conn, err := grpcc.Connect(string(addr))
 	if err != nil {
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "SetJob").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -189,7 +189,7 @@ func (grpcc *GRPCClient) SetJob(job *Job) error {
 	})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "SetJob").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -210,7 +210,7 @@ func (grpcc *GRPCClient) DeleteJob(jobName string) (*Job, error) {
 	conn, err := grpcc.Connect(string(addr))
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "DeleteJob").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -226,7 +226,7 @@ func (grpcc *GRPCClient) DeleteJob(jobName string) (*Job, error) {
 	})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "DeleteJob").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -249,7 +249,7 @@ func (grpcc *GRPCClient) RunJob(jobName string) (*Job, error) {
 	conn, err := grpcc.Connect(string(addr))
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RunJob").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -265,7 +265,7 @@ func (grpcc *GRPCClient) RunJob(jobName string) (*Job, error) {
 	})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RunJob").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -286,7 +286,7 @@ func (grpcc *GRPCClient) RaftGetConfiguration(addr string) (*sxproto.RaftGetConf
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RaftGetConfiguration").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -300,7 +300,7 @@ func (grpcc *GRPCClient) RaftGetConfiguration(addr string) (*sxproto.RaftGetConf
 	res, err := d.RaftGetConfiguration(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RaftGetConfiguration").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -319,7 +319,7 @@ func (grpcc *GRPCClient) RaftRemovePeerByID(addr, peerID string) error {
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RaftRemovePeerByID").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -335,7 +335,7 @@ func (grpcc *GRPCClient) RaftRemovePeerByID(addr, peerID string) error {
 	)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "RaftRemovePeerByID").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -354,7 +354,7 @@ func (grpcc *GRPCClient) GetActiveExecutions(addr string) ([]*sxproto.Execution,
 	conn, err := grpcc.Connect(addr)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "GetActiveExecutions").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -368,7 +368,7 @@ func (grpcc *GRPCClient) GetActiveExecutions(addr string) ([]*sxproto.Execution,
 	gaer, err := d.GetActiveExecutions(context.Background(), &emptypb.Empty{})
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "GetActiveExecutions").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -389,7 +389,7 @@ func (grpcc *GRPCClient) SetExecution(execution *sxproto.Execution) error {
 	conn, err := grpcc.Connect(string(addr))
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "SetExecution").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -403,7 +403,7 @@ func (grpcc *GRPCClient) SetExecution(execution *sxproto.Execution) error {
 	_, err = d.SetExecution(context.Background(), execution)
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "SetExecution").
 			Any("server_addr", addr).
 			Msg("grpc: Error calling gRPC method")
@@ -422,7 +422,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 	conn, err := grpcc.Connect(string(addr))
 	if err != nil {
 
-		grpcc.agent.logger.Error().Err(err).
+		grpcc.logger.Error().Err(err).
 			Str("method", "AgentRun").
 			Any("server_addr", addr).
 			Msg("grpc: error dialing.")
@@ -460,7 +460,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 			execution.FinishedAt = timestamppb.Now()
 			execution.Output = []byte(ErrBrokenStream.Error() + ": " + err.Error())
 
-			grpcc.agent.logger.Error().Err(err).Err(ErrBrokenStream).Send()
+			grpcc.logger.Error().Err(err).Err(ErrBrokenStream).Send()
 
 			addr := grpcc.agent.raft.Leader()
 			if err := grpcc.ExecutionDone(string(addr), sxexec.NewExecutionFromProto(execution)); err != nil {
@@ -472,7 +472,7 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 		// Registers an active stream
 		grpcc.agent.activeExecutions.Store(ars.Execution.Key(), ars.Execution)
 
-		grpcc.agent.logger.Debug().
+		grpcc.logger.Debug().
 			Str("key", ars.Execution.Key()).
 			Msg("grpc: received execution stream")
 
@@ -488,8 +488,8 @@ func (grpcc *GRPCClient) AgentRun(addr string, job *sxproto.Job, execution *sxpr
 		}
 
 		// Notify the starting of the execution
-		if err := SendPreNotifications(grpcc.agent.config, sxexec.NewExecutionFromProto(execution), nil, NewJobFromProto(job), grpcc.agent.logger); err != nil {
-			grpcc.agent.logger.Error().
+		if err := SendPreNotifications(grpcc.agent.config, sxexec.NewExecutionFromProto(execution), nil, NewJobFromProto(job), grpcc.logger); err != nil {
+			grpcc.logger.Error().
 				Err(err).
 				Str("job_name", job.Name).
 				Str("node", grpcc.agent.config.NodeName).

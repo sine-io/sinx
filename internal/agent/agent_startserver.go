@@ -15,20 +15,20 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/soheilhy/cmux"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxlog "github.com/sine-io/sinx/log"
 )
 
 // StartServer launch a new SinX server process
 func (a *Agent) StartServer() {
-	if a.JobDB == nil {
-		s, err := NewBuntJobDB()
+	if a.Storage == nil {
+		s, err := NewBuntdbStore()
 		if err != nil {
 			a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 		}
 
 		// set store logger to zerolog
-		a.JobDB = s.WithLogger(&a.logger)
+		a.Storage = s.WithLogger(&a.logger)
 	}
 
 	// set scheduler logger to zerolog
@@ -198,7 +198,7 @@ func (a *Agent) setupRaft() error {
 				return fmt.Errorf("recovery failed to parse peers.json: %v", err)
 			}
 
-			store, err := NewBuntJobDB()
+			store, err := NewBuntdbStore()
 			if err != nil {
 				a.logger.Fatal().Err(err).Msg("sinx: Error initializing store")
 			}
@@ -244,7 +244,7 @@ func (a *Agent) setupRaft() error {
 	// Instantiate the Raft systems. The second parameter is a finite state machine
 	// which stores the actual kv pairs and is operated upon through Apply().
 	// set fsm logger to zerolog.
-	fsm := newRaftFSM(a.JobDB, a.ProAppliers).WithLogger(&a.logger)
+	fsm := newRaftFSM(a.Storage, a.ProAppliers).WithLogger(&a.logger)
 
 	rft, err := raft.NewRaft(raftCfg, fsm, logStore, stableStore, snapshots, transport)
 	if err != nil {
@@ -276,7 +276,7 @@ func (a *Agent) startReporter() {
 			ClusterID: clusterID,
 			ServerID:  serverID,
 			URL:       "https://stats.xxxxxxx.io",
-			Version:   fmt.Sprintf("%s %s", sxconfig.Name, sxconfig.Version),
+			Version:   fmt.Sprintf("%s %s", sxcfg.Name, sxcfg.Version),
 		}); err != nil {
 			a.logger.Warn().Msgf("agent: unable to create the usage report client: %s", err.Error())
 		}

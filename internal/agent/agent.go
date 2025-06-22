@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxplugin "github.com/sine-io/sinx/plugin"
 	sxproto "github.com/sine-io/sinx/types"
 )
@@ -57,8 +57,8 @@ type Agent struct {
 	// HTTPTransport is a swappable interface for the HTTP server interface
 	HTTPTransport Transport
 
-	// JobDB interface to set the job db engine
-	JobDB JobDB
+	// Storage interface to set the job db engine
+	Storage Storage
 
 	// GRPCServer interface for setting the GRPC server
 	GRPCServer SinxGRPCServer
@@ -114,7 +114,7 @@ type Agent struct {
 	// logger is the log entry to use for all logging calls
 	logger zerolog.Logger
 	// config is the configuration to use for the agent
-	config *sxconfig.Config
+	config *sxcfg.Config
 }
 
 // ProcessorFactory is a function type that creates a new instance
@@ -129,7 +129,7 @@ type PluginRegistry struct {
 
 // NewAgent returns a new Agent instance capable of starting
 // and running a SinX instance.
-func NewAgent(config *sxconfig.Config) *Agent {
+func NewAgent(config *sxcfg.Config) *Agent {
 	agent := &Agent{
 		config:       config,
 		retryJoinCh:  make(chan error),

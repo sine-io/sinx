@@ -8,7 +8,7 @@ import (
 	version "github.com/hashicorp/go-version"
 	"github.com/hashicorp/serf/serf"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 var (
@@ -47,7 +47,7 @@ func (s *ServerParts) Copy() *ServerParts {
 
 // UserAgent returns the consistent user-agent string
 func UserAgent() string {
-	return fmt.Sprintf("Sinx/%s (+%s;)", sxconfig.Version, projectURL)
+	return fmt.Sprintf("Sinx/%s (+%s;)", sxcfg.Version, projectURL)
 }
 
 // IsServer Returns if a member is a Sinx server. Returns a boolean,

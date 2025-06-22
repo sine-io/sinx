@@ -17,7 +17,7 @@ func (a *Agent) StopAgent() error {
 		// TODO: Check why Shutdown().Error() is not working
 		_ = a.raft.Shutdown()
 
-		if err := a.JobDB.Shutdown(); err != nil {
+		if err := a.Storage.Shutdown(); err != nil {
 			return err
 		}
 	}

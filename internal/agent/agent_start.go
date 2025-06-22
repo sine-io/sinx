@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxmetrics "github.com/sine-io/sinx/internal/metrics"
 	sxlog "github.com/sine-io/sinx/log"
 	sxproto "github.com/sine-io/sinx/types"
@@ -24,7 +24,7 @@ import (
 // checks and server or client routines.
 func (a *Agent) StartAgent() error {
 	// 1. Normalize configured addresses
-	if err := a.config.NormalizeAddrs(); err != nil && !errors.Is(err, sxconfig.ErrResolvingHost) {
+	if err := a.config.NormalizeAddrs(); err != nil && !errors.Is(err, sxcfg.ErrResolvingHost) {
 		return err
 	}
 
@@ -143,7 +143,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.Tags["role"] = "sinx"
 	serfConfig.Tags["dc"] = a.config.Datacenter
 	serfConfig.Tags["region"] = a.config.Region
-	serfConfig.Tags["version"] = sxconfig.Version
+	serfConfig.Tags["version"] = sxcfg.Version
 	if a.config.Server {
 		serfConfig.Tags["server"] = strconv.FormatBool(a.config.Server)
 	}

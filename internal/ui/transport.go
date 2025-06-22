@@ -65,7 +65,7 @@ func (h *HTTPTransport) ServeHTTP() {
 		h.UI(rootPath, false)
 	}
 
-	h.logger.Info().Str("address", config.HTTPAddr).Msg("api: Running HTTP server")
+	h.logger.Info().Msgf("api: Running HTTP server on %s", config.HTTPAddr)
 
 	go func() {
 		if err := h.Engine.Run(config.HTTPAddr); err != nil {

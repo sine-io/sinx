@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 // NetworkFlagSet creates all of our network flags.
-func NetworkFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
+func NetworkFlagSet(cfg *sxcfg.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("network flagset", flag.ContinueOnError)
 
 	cmdFlags.String("bind-addr", cfg.BindAddr,

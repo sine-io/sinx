@@ -14,7 +14,7 @@ import (
 
 // Run call the agents to run a job. Returns a job with its new status and next schedule.
 func (a *Agent) RunAgent(jobName string, ex *sxexec.Execution) (*Job, error) {
-	job, err := a.JobDB.GetJob(jobName, nil)
+	job, err := a.Storage.GetJob(jobName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("agent: Run error retrieving job: %s from store: %w", jobName, err)
 	}

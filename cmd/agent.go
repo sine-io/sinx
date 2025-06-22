@@ -16,14 +16,14 @@ import (
 
 	sxflagset "github.com/sine-io/sinx/cmd/flagset"
 	sxagent "github.com/sine-io/sinx/internal/agent"
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxui "github.com/sine-io/sinx/internal/ui"
 	sxplugin "github.com/sine-io/sinx/plugin"
 )
 
 var (
 	cfgFile string
-	cfg     = sxconfig.DefaultConfig()
+	cfg     = sxcfg.DefaultConfig()
 
 	ShutdownCh chan struct{}
 	agent      *sxagent.Agent

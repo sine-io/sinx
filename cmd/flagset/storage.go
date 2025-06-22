@@ -3,11 +3,11 @@ package flagset
 import (
 	flag "github.com/spf13/pflag"
 
-	sxconfig "github.com/sine-io/sinx/internal/config"
+	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
 // StorageFlagSet creates all of our storage flags.
-func StorageFlagSet(cfg *sxconfig.Config) *flag.FlagSet {
+func StorageFlagSet(cfg *sxcfg.Config) *flag.FlagSet {
 	cmdFlags := flag.NewFlagSet("storage flagset", flag.ContinueOnError)
 
 	cmdFlags.Int("raft-multiplier", cfg.RaftMultiplier,

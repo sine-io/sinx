@@ -253,7 +253,7 @@ func (j *Job) String() string {
 }
 
 // GetParent returns the parent job of a job
-func (j *Job) GetParent(store *BuntJobDB) (*Job, error) {
+func (j *Job) GetParent(store *BuntdbStore) (*Job, error) {
 	if j.Name == j.ParentJob {
 		return nil, ErrSameParent
 	}
@@ -458,6 +458,24 @@ func GenerateJobTree(jobs []*Job) ([]*Job, error) {
 		jobs = rejobs
 	}
 	return jobs, nil
+}
+
+func RecursiveSetJob(jobs []*Job) []string {
+	result := make([]string, 0)
+	for _, job := range jobs {
+		err := job.Agent.GRPCClient.SetJob(job)
+		if err != nil {
+			result = append(result, "fail create "+job.Name)
+			continue
+		} else {
+			result = append(result, "success create "+job.Name)
+			if len(job.ChildJobs) > 0 {
+				recursiveResult := RecursiveSetJob(job.ChildJobs)
+				result = append(result, recursiveResult...)
+			}
+		}
+	}
+	return result
 }
 
 // findParentJobAndValidateJob...

@@ -149,7 +149,7 @@ func getPluginName(file string) (string, bool) {
 	return name, true
 }
 
-func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (interface{}, error) {
+func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (any, error) {
 	// Build the plugin client configuration and init the plugin
 	var config = &goplugin.ClientConfig{
 		Cmd:             exec.Command(path, args...),
