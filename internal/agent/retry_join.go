@@ -93,7 +93,10 @@ func (r *retryJoiner) retryJoin() error {
 			case strings.Contains(addr, "provider="):
 				servers, err := disco.Addrs(
 					addr,
-					sxlog.HclogHook("discover", &r.logger).StandardLogger(&hclog.StandardLoggerOptions{}),
+					sxlog.HclogHook("discover", &r.logger).StandardLogger(&hclog.StandardLoggerOptions{
+						InferLevels:              true,
+						InferLevelsWithTimestamp: true,
+					}),
 				)
 				if err != nil {
 					r.logger.Error().Err(err).Str("cluster", r.cluster).Msg("agent: Error Joining")

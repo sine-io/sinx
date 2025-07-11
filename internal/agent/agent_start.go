@@ -139,7 +139,10 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.Init()
 
 	// set serf logger
-	serfConfig.Logger = sxlog.HclogHook("serf", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{})
+	serfConfig.Logger = sxlog.HclogHook("serf", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{
+		InferLevels:              true,
+		InferLevelsWithTimestamp: true,
+	})
 
 	serfConfig.Tags = a.config.Tags
 	serfConfig.Tags["role"] = "sinx"
@@ -174,7 +177,10 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.MemberlistConfig.SecretKey = encryptKey
 
 	// set serf memberlist logger
-	serfConfig.MemberlistConfig.Logger = sxlog.HclogHook("serf.memberlist", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{})
+	serfConfig.MemberlistConfig.Logger = sxlog.HclogHook("serf.memberlist", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{
+		InferLevels:              true,
+		InferLevelsWithTimestamp: true,
+	})
 
 	serfConfig.NodeName = config.NodeName
 	serfConfig.Tags = config.Tags
