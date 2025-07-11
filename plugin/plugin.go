@@ -158,9 +158,8 @@ func (p *Plugins) pluginFactory(path string, args []string, pluginType string) (
 		Plugins:         PluginMap,
 		SyncStdout:      os.Stdout,
 		SyncStderr:      os.Stderr,
-		Logger: sxlog.HclogWrapper(
+		Logger: sxlog.HclogHook(
 			"plugins",
-			viper.GetString("log-level"),
 			&p.logger,
 		),
 	}

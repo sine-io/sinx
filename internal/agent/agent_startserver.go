@@ -12,7 +12,7 @@ import (
 	"github.com/devopsfaith/krakend-usage/client"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
+	raftboltdb "github.com/hashicorp/raft-boltdb/v2" // use v2 instead of v1
 	"github.com/soheilhy/cmux"
 
 	sxcfg "github.com/sine-io/sinx/internal/config"
@@ -125,14 +125,14 @@ func (a *Agent) setupRaft() error {
 		Timeout:               raftTimeout,
 		ServerAddressProvider: a.serverLookup,
 		// set raft network logger to zerolog
-		Logger: sxlog.HclogWrapper("raft-net", a.logger.GetLevel().String(), &a.logger),
+		Logger: sxlog.HclogHook("raft.network", &a.logger),
 	}
 	transport := raft.NewNetworkTransportWithConfig(transConfig)
 	a.raftTransport = transport
 
 	raftCfg := raft.DefaultConfig()
 	// set raft logger to zerolog
-	raftCfg.Logger = sxlog.HclogWrapper("raft", a.logger.GetLevel().String(), &a.logger)
+	raftCfg.Logger = sxlog.HclogHook("raft", &a.logger)
 
 	// Raft performance
 	raftMultiplier := a.config.RaftMultiplier
@@ -163,7 +163,7 @@ func (a *Agent) setupRaft() error {
 		// We set the snapshot logger to zerolog
 		snapshots, err = raft.NewFileSnapshotStoreWithLogger(
 			filepath.Join(a.config.DataDir, "raft"), 3,
-			sxlog.HclogWrapper("snapshot", a.logger.GetLevel().String(), &a.logger),
+			sxlog.HclogHook("raft.snapshot", &a.logger),
 		)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)

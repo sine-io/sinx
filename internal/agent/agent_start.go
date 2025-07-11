@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -137,7 +139,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.Init()
 
 	// set serf logger
-	serfConfig.Logger = sxlog.GologWrapper(&a.logger)
+	serfConfig.Logger = sxlog.HclogHook("serf", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{})
 
 	serfConfig.Tags = a.config.Tags
 	serfConfig.Tags["role"] = "sinx"
@@ -172,7 +174,7 @@ func (a *Agent) setupSerf() (*serf.Serf, error) {
 	serfConfig.MemberlistConfig.SecretKey = encryptKey
 
 	// set serf memberlist logger
-	serfConfig.MemberlistConfig.Logger = sxlog.GologWrapper(&a.logger)
+	serfConfig.MemberlistConfig.Logger = sxlog.HclogHook("serf.memberlist", &a.logger).StandardLogger(&hclog.StandardLoggerOptions{})
 
 	serfConfig.NodeName = config.NodeName
 	serfConfig.Tags = config.Tags

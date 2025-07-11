@@ -13,6 +13,7 @@ require (
 	github.com/devopsfaith/krakend-usage v1.4.0
 	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-contrib/expvar v1.0.3
+	github.com/gin-contrib/logger v1.2.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-discover v1.0.0
@@ -25,7 +26,7 @@ require (
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/memberlist v0.5.3
 	github.com/hashicorp/raft v1.7.3
-	github.com/hashicorp/raft-boltdb v0.0.0-20250528070419-144f8b0a1edb
+	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/hashicorp/serf v0.10.2
 	github.com/jordan-wright/email v4.0.1-0.20210109023952-943e75fe5223+incompatible
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
@@ -101,8 +102,6 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
-	github.com/gin-contrib/logger v1.2.6 // indirect
-	github.com/gin-contrib/requestid v1.0.5 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -127,10 +126,10 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-discover/provider/gce v0.0.0-20241120163552-5eb1507d16b4 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/mdns v1.0.5 // indirect
+	github.com/hashicorp/raft-boltdb v0.0.0-20250528070419-144f8b0a1edb // indirect
 	github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
@@ -197,6 +196,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.etcd.io/bbolt v1.3.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect

@@ -12,7 +12,7 @@ import (
 	sxexec "github.com/sine-io/sinx/internal/execution"
 )
 
-// Run call the agents to run a job. Returns a job with its new status and next schedule.
+// RunAgent Run call the agents to run a job. Returns a job with its new status and next schedule.
 func (a *Agent) RunAgent(jobName string, ex *sxexec.Execution) (*Job, error) {
 	job, err := a.Storage.GetJob(jobName, nil)
 	if err != nil {

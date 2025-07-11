@@ -51,8 +51,10 @@ func InitLogger() {
 	switch parsedLogLevel {
 	case zerolog.NoLevel:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel) // NoLevel will be set to InfoLevel.
+	case zerolog.FatalLevel, zerolog.PanicLevel:
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	default:
-		zerolog.SetGlobalLevel(parsedLogLevel) // TODO: if we set fatal and panic, we should also receive the info msg from hclog.
+		zerolog.SetGlobalLevel(parsedLogLevel)
 	}
 
 	fileLogger := &lumberjack.Logger{

@@ -7,6 +7,7 @@ import (
 
 	discover "github.com/hashicorp/go-discover"
 	discoverk8s "github.com/hashicorp/go-discover/provider/k8s"
+	"github.com/hashicorp/go-hclog"
 	"github.com/rs/zerolog"
 
 	sxcfg "github.com/sine-io/sinx/internal/config"
@@ -92,7 +93,7 @@ func (r *retryJoiner) retryJoin() error {
 			case strings.Contains(addr, "provider="):
 				servers, err := disco.Addrs(
 					addr,
-					sxlog.GologWrapper(&r.logger),
+					sxlog.HclogHook("discover", &r.logger).StandardLogger(&hclog.StandardLoggerOptions{}),
 				)
 				if err != nil {
 					r.logger.Error().Err(err).Str("cluster", r.cluster).Msg("agent: Error Joining")

@@ -16,7 +16,7 @@ func init() {
 	cobra.OnInitialize(sxlog.InitLogger)
 
 	rootCmd.PersistentFlags().StringVar(&sxlog.LogLevel, "log-level", sxlog.LogLevel,
-		`Log level (trace, debug, info, warn, error, fatal, panic, disabled), same to zerolog.
+		`Log level (trace, debug, info, warn, error, disabled).
 It's case insensitive, so you can use 'DEBUG', 'Info', etc.
 Level 'disabled' will disable all logging.
 Invalid log level will be set to 'info'.`)
