@@ -84,7 +84,7 @@ message ACLTokenListResponse {
     repeated Token tokens = 1;
 }
 
-// DkronPro is the DkronPro service definition
+// SinxPro is the SinxPro service definition
 service SinxPro {
     rpc ACLPolicyUpsert (ACLPolicyUpsertRequest) returns (ACLPolicyUpsertResponse);
     rpc ACLPolicyDelete (ACLPolicyDeleteRequest) returns (ACLPolicyDeleteResponse);
