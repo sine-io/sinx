@@ -41,8 +41,8 @@ func NewPlugins() *Plugins {
 	}
 }
 
-func (p *Plugins) WithLogger(logger *zerolog.Logger) *Plugins {
-	p.logger = logger.Hook() // TODO: do nothing now, but we can add hooks later
+func (p *Plugins) WithLogger(logger zerolog.Logger) *Plugins {
+	p.logger = logger.With().Logger()
 
 	return p
 }

@@ -9,20 +9,9 @@ import (
 	sxcfg "github.com/sine-io/sinx/internal/config"
 )
 
-// WithLogger option to set logger to the agent
-func (a *Agent) WithLogger(logger *zerolog.Logger) *Agent {
-	a.logger = logger.Hook(
-		zerolog.HookFunc(func(e *zerolog.Event, level zerolog.Level, msg string) {
-			e.Str("node", a.config.NodeName) // Add node name to each log event
-		}),
-	)
-
-	return a
-}
-
 // Logger returns the pointer to the agent's logger.
-func (a *Agent) Logger() *zerolog.Logger {
-	return &a.logger
+func (a *Agent) Logger() zerolog.Logger {
+	return a.logger
 }
 
 // WithConfig option to set config to the agent

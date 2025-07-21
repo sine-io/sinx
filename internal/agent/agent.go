@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	sxcfg "github.com/sine-io/sinx/internal/config"
 	sxplugin "github.com/sine-io/sinx/plugin"
@@ -135,8 +136,8 @@ func NewAgent(config *sxcfg.Config) *Agent {
 		retryJoinCh:  make(chan error),
 		serverLookup: NewServerLookup(),
 
-		// set default logger, you can override it with WithLogger
-		logger: zerolog.New(zerolog.NewConsoleWriter()),
+		// set logger, add node name to the log.
+		logger: zlog.With().Str("node", config.NodeName).Logger(),
 	}
 
 	return agent

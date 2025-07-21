@@ -25,7 +25,7 @@ func HclogHook(name string, logger *zerolog.Logger) hclog.Logger {
 				} else {
 					jsonFields["level"] = jsonFields["@level"]
 
-					// TODO: I don't know how to delete message in zlog.Logger, i will do it later.
+					// TODO: I don't know how to delete message in zerolog.Logger, i will do it later.
 					e.Fields(jsonFields)
 				}
 			}),

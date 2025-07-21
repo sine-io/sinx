@@ -23,14 +23,8 @@ func NewHTTPTransport(agent *sxagent.Agent) *HTTPTransport {
 		Engine: gin.Default(),
 		agent:  agent,
 
-		logger: zerolog.New(zerolog.NewConsoleWriter()),
+		logger: agent.Logger(),
 	}
-}
-
-func (h *HTTPTransport) WithLogger(logger *zerolog.Logger) *HTTPTransport {
-	h.logger = logger.Hook()
-
-	return h
 }
 
 func (h *HTTPTransport) ServeHTTP() {

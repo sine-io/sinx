@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -112,16 +111,16 @@ func initConfig() error {
 }
 
 func agentRun(args ...string) error {
-	// 1. init agent with config and logger.
-	agent = sxagent.NewAgent(cfg).WithLogger(&zlog.Logger)
+	// 1. init agent with config.
+	agent = sxagent.NewAgent(cfg)
 
-	logger = agent.Logger().Hook()
+	logger = agent.Logger()
 	// This log statement helps avoid compiler warnings about unused parameters
 	// as 'args' is not used elsewhere in the function
 	logger.Debug().Msgf("agentRun called with args: %v", args)
 
 	// 2. set agent plugins
-	p := sxplugin.NewPlugins().WithLogger(&logger)
+	p := sxplugin.NewPlugins().WithLogger(logger)
 	if err := p.DiscoverPlugins(); err != nil {
 		logger.Fatal().Err(err).Send()
 	}
@@ -133,7 +132,7 @@ func agentRun(args ...string) error {
 	agent.WithPlugins(plugins)
 
 	// 3. set agent transport
-	agent.HTTPTransport = sxui.NewHTTPTransport(agent).WithLogger(agent.Logger())
+	agent.HTTPTransport = sxui.NewHTTPTransport(agent)
 
 	// 4. start the agent
 	// TODO: init all the components of the agent in the StartAgent method.
