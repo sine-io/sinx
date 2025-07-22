@@ -31,7 +31,7 @@ var (
 //  3. pointers: during assignment, the pointer is copied,
 //     so if you want to modify the original value, you can use the pointer directly.
 //
-// In one sentence, we should use a logger pointer to crate agent logger,
+// In one sentence, we should use a logger pointer to crate agent logger when we use Hook method,
 //
 //	so we can use the initialization which initialized in this function.
 //
@@ -41,6 +41,11 @@ var (
 //	agentLogger.Hook()
 //
 // `agentLogger.Hook()` will return a new logger with the same configuration as the global logger, but we can add hooks to it.
+//
+// When we use With() method, we can use a logger struct, not the pointer.
+// Like this:
+// logger = zlog.Logger.With().Logger()
+
 func InitLogger() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
