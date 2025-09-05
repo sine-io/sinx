@@ -1,0 +1,295 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "基于 Gin 的用户认证与授权服务接口文档。",
+        "title": "Sinx 用户认证系统 API",
+        "contact": {
+            "name": "Sineio"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/auth/login": {
+            "post": {
+                "description": "用户登录获取令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "用户登录",
+                "parameters": [
+                    {
+                        "description": "登录信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/register": {
+            "post": {
+                "description": "创建新用户账户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "注册信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.UserResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/profile": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取当前登录用户的资料信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "获取用户资料",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.UserResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "password123"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
+        "dto.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "user": {
+                    "$ref": "#/definitions/dto.UserResponse"
+                }
+            }
+        },
+        "dto.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "john@example.com"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 6,
+                    "example": "password123"
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 3,
+                    "example": "john_doe"
+                }
+            }
+        },
+        "dto.UserResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "john@example.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
+        "errorx.ErrorCode": {
+            "type": "integer",
+            "enum": [
+                0,
+                10001,
+                10002,
+                10003,
+                10004,
+                10005,
+                20001,
+                20002,
+                20003,
+                20004,
+                20005
+            ],
+            "x-enum-varnames": [
+                "ErrSuccess",
+                "ErrInternalServer",
+                "ErrInvalidParam",
+                "ErrUnauthorized",
+                "ErrForbidden",
+                "ErrNotFound",
+                "ErrUserNotFound",
+                "ErrUserAlreadyExists",
+                "ErrUserInvalidPassword",
+                "ErrUserInvalidToken",
+                "ErrUserTokenExpired"
+            ]
+        },
+        "response.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/errorx.ErrorCode"
+                },
+                "data": {},
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "使用格式: Bearer \u003ctoken\u003e",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: sinx-postgres
+    environment:
+      POSTGRES_DB: sinx
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - sinx-network
+
+  sinx-app:
+    build: .
+    container_name: sinx-app
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: 123456
+      DB_NAME: sinx
+      DB_SSL_MODE: disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - sinx-network
+
+volumes:
+  postgres_data:
+
+networks:
+  sinx-network:
+    driver: bridge
