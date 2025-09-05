@@ -315,9 +315,10 @@ curl -X GET http://localhost:8080/api/user/profile
    - `Authorization`: `Bearer {{token}}`
 
 3. 测试建议流程：
-  - 注册或初始化管理员账户
-  - 登录获取 token
-  - 创建角色 -> 创建菜单 -> 绑定角色菜单 -> 创建普通用户 -> 绑定角色 -> 登录普通用户验证权限
+
+- 注册或初始化管理员账户
+- 登录获取 token
+- 创建角色 -> 创建菜单 -> 绑定角色菜单 -> 创建普通用户 -> 绑定角色 -> 登录普通用户验证权限
 
 ## 常见排查
 
@@ -326,4 +327,3 @@ curl -X GET http://localhost:8080/api/user/profile
 | 401 unauthorized | Header 缺失或 token 过期 | 重新登录，确认使用 `Authorization: Bearer <token>` |
 | 403 (自定义 code) | 没有绑定相应角色/菜单/权限点 | 确认角色已绑定菜单，菜单包含 perms 字段，且用户已绑定角色 |
 | 列表为空 | 尚未创建数据或分页超出 | 检查 pageNum/pageSize 或数据库记录 |
-

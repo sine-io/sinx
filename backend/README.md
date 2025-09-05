@@ -99,7 +99,8 @@ docker compose up -d --build
 ```
 
 启动后：
-- 应用：http://localhost:8080
+
+- 应用：<http://localhost:8080>
 - PostgreSQL：localhost:5432 （用户 postgres / 123456）
 
 ### 5. 安装依赖（本地开发）
@@ -140,11 +141,12 @@ http://localhost:8080/swagger/index.html
 
 核心关系：
 
-```
+```text
 User <-> UserRole(关联表) <-> Role <-> RoleMenu(关联表) <-> Menu (含 perms 权限点)
 ```
 
 权限校验流程：
+
 1. 用户登录获取 JWT
 2. 请求受保护接口时 `AuthMiddleware` 解析用户 ID
 3. `PermissionMiddleware` 根据用户 ID 计算并缓存其权限集合（当前实现为实时查询，可扩展 Redis）
