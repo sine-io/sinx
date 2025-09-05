@@ -9,6 +9,7 @@ import (
 	rbacRepo "github.com/sine-io/sinx/domain/rbac/repository"
 	roleEntity "github.com/sine-io/sinx/domain/role/entity"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type rbacRepositoryImpl struct{ db *gorm.DB }
@@ -19,7 +20,7 @@ func (r *rbacRepositoryImpl) BindUserRoles(ctx context.Context, userID uint, rol
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, rid := range roleIDs {
 			ur := &rbacEntity.UserRole{UserID: userID, RoleID: rid}
-			if err := tx.Create(ur).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(ur).Error; err != nil {
 				return err
 			}
 		}
@@ -41,7 +42,7 @@ func (r *rbacRepositoryImpl) BindRoleMenus(ctx context.Context, roleID uint, men
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, mid := range menuIDs {
 			rm := &rbacEntity.RoleMenu{RoleID: roleID, MenuID: mid}
-			if err := tx.Create(rm).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(rm).Error; err != nil {
 				return err
 			}
 		}

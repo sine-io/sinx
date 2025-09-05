@@ -18,6 +18,15 @@ type RBACHandler struct {
 func NewRBACHandler(s *rbacService.RBACApplicationService) *RBACHandler { return &RBACHandler{svc: s} }
 
 // 用户接口
+// CreateUser 创建用户
+// @Summary 创建用户
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.UserCreateRequest true "创建用户参数"
+// @Success 200 {object} response.Response
+// @Router /api/user/create [post]
 func (h *RBACHandler) CreateUser(c *gin.Context) {
 	var req rbacdto.UserCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -54,6 +63,16 @@ func (h *RBACHandler) DeleteUser(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UserList 用户列表
+// @Summary 获取用户列表
+// @Tags 用户管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param pageNum query int false "页码"
+// @Param pageSize query int false "每页大小"
+// @Success 200 {object} response.Response
+// @Router /api/user/list [get]
 func (h *RBACHandler) UserList(c *gin.Context) {
 	pageNum, _ := strconv.Atoi(c.DefaultQuery("pageNum", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -134,6 +153,15 @@ func (h *RBACHandler) GetUserMenus(c *gin.Context) {
 }
 
 // 角色接口
+// CreateRole 创建或更新角色
+// @Summary 创建角色
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.RoleCreateOrUpdateRequest true "角色"
+// @Success 200 {object} response.Response
+// @Router /api/role/create [post]
 func (h *RBACHandler) CreateRole(c *gin.Context) {
 	var req rbacdto.RoleCreateOrUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -159,6 +187,16 @@ func (h *RBACHandler) DeleteRole(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// RoleList 角色列表
+// @Summary 获取角色列表
+// @Tags 角色管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param pageNum query int false "页码"
+// @Param pageSize query int false "每页大小"
+// @Success 200 {object} response.Response
+// @Router /api/role/list [get]
 func (h *RBACHandler) RoleList(c *gin.Context) {
 	pageNum, _ := strconv.Atoi(c.DefaultQuery("pageNum", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -226,6 +264,15 @@ func (h *RBACHandler) GetRoleMenuTree(c *gin.Context) {
 }
 
 // 菜单接口
+// CreateMenu 创建菜单
+// @Summary 创建菜单
+// @Tags 菜单管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.MenuCreateOrUpdateRequest true "菜单"
+// @Success 200 {object} response.Response
+// @Router /api/menu/create [post]
 func (h *RBACHandler) CreateMenu(c *gin.Context) {
 	var req rbacdto.MenuCreateOrUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -267,6 +314,14 @@ func (h *RBACHandler) MenuList(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"total": total, "data": list})
 }
+
+// MenuTree 菜单树
+// @Summary 获取菜单树
+// @Tags 菜单管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} response.Response
+// @Router /api/menu/tree [get]
 func (h *RBACHandler) MenuTree(c *gin.Context) {
 	tree, err := h.svc.MenuTree(c)
 	if err != nil {
