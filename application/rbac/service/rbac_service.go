@@ -11,6 +11,7 @@ import (
 	roleRepo "github.com/sine-io/sinx/domain/role/repository"
 	userEntity "github.com/sine-io/sinx/domain/user/entity"
 	userRepo "github.com/sine-io/sinx/domain/user/repository"
+	"github.com/sine-io/sinx/pkg/errorx"
 	"github.com/sine-io/sinx/pkg/utils"
 )
 
@@ -161,8 +162,8 @@ func (s *RBACApplicationService) DeleteMenu(ctx context.Context, id uint) error 
 		return err
 	}
 	if hasChild {
-		return nil
-	} // 简化: 返回 nil; 实际应返回错误
+		return errorx.NewWithCode(errorx.ErrHasChildren)
+	}
 	return s.menuRepository.Delete(ctx, id)
 }
 
@@ -274,4 +275,19 @@ func (s *RBACApplicationService) GetRoleMenuTree(ctx context.Context, roleID uin
 		return nil, err
 	}
 	return &rbacdto.RoleMenuTreeResponse{MenuIDs: ids}, nil
+}
+
+// GetUserPerms 返回用户拥有的权限标识集合
+func (s *RBACApplicationService) GetUserPerms(ctx context.Context, userID uint) (map[string]struct{}, error) {
+	menus, err := s.rbacRepository.GetUserMenus(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	perms := make(map[string]struct{})
+	for _, m := range menus {
+		if m.Perms != "" {
+			perms[m.Perms] = struct{}{}
+		}
+	}
+	return perms, nil
 }

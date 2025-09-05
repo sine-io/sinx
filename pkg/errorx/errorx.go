@@ -15,6 +15,7 @@ const (
 	ErrUnauthorized   ErrorCode = 10003
 	ErrForbidden      ErrorCode = 10004
 	ErrNotFound       ErrorCode = 10005
+	ErrHasChildren    ErrorCode = 10006
 
 	// 用户相关错误码 20000-29999
 	ErrUserNotFound        ErrorCode = 20001
@@ -72,6 +73,7 @@ var errorMessages = map[ErrorCode]string{
 	ErrUnauthorized:        "unauthorized",
 	ErrForbidden:           "forbidden",
 	ErrNotFound:            "not found",
+	ErrHasChildren:         "resource has children",
 	ErrUserNotFound:        "user not found",
 	ErrUserAlreadyExists:   "user already exists",
 	ErrUserInvalidPassword: "invalid password",

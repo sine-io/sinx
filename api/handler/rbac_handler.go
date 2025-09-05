@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sine-io/sinx/api/middleware"
 	rbacdto "github.com/sine-io/sinx/application/rbac/dto"
 	rbacService "github.com/sine-io/sinx/application/rbac/service"
 	"github.com/sine-io/sinx/pkg/errorx"
@@ -119,7 +120,11 @@ func (h *RBACHandler) GetUserMenus(c *gin.Context) {
 	if idStr != "" {
 		v, _ := strconv.Atoi(idStr)
 		id = uint(v)
-	} // 若为空，可结合token获取当前用户，这里简化
+	} else {
+		if uid, ok := middleware.GetUserID(c); ok {
+			id = uid
+		}
+	}
 	menus, err := h.svc.GetUserMenus(c, id)
 	if err != nil {
 		response.InternalError(c, err)
