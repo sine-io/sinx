@@ -11,6 +11,7 @@ import (
 	rbacAppService "github.com/sine-io/sinx/application/rbac/service"
 	userAppService "github.com/sine-io/sinx/application/user/service"
 	userDomainService "github.com/sine-io/sinx/domain/user/service"
+	"github.com/sine-io/sinx/infra/cache"
 	"github.com/sine-io/sinx/infra/database"
 	"github.com/sine-io/sinx/infra/migration"
 	userRepoInfra "github.com/sine-io/sinx/infra/repository"
@@ -61,6 +62,9 @@ func initInfrastructure(ctx context.Context) (*Dependencies, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
+
+	// 初始化 Redis（可失败，失败将使用内存缓存）
+	_ = cache.InitRedis()
 
 	// 执行数据库迁移
 	if err := migration.AutoMigrate(db); err != nil {

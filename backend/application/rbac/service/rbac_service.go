@@ -12,6 +12,7 @@ import (
 	roleRepo "github.com/sine-io/sinx/domain/role/repository"
 	userEntity "github.com/sine-io/sinx/domain/user/entity"
 	userRepo "github.com/sine-io/sinx/domain/user/repository"
+	"github.com/sine-io/sinx/infra/cache"
 	"github.com/sine-io/sinx/pkg/errorx"
 	"github.com/sine-io/sinx/pkg/logger"
 	"github.com/sine-io/sinx/pkg/permissions"
@@ -24,10 +25,15 @@ type RBACApplicationService struct {
 	menuRepository menuRepo.MenuRepository
 	rbacRepository rbacRepo.RBACRepository
 	permCache      *permissions.UserPermCache
+	redisPermCache *permissions.RedisUserPermCache
 }
 
 func NewRBACApplicationService(u userRepo.UserRepository, r roleRepo.RoleRepository, m menuRepo.MenuRepository, rb rbacRepo.RBACRepository) *RBACApplicationService {
-	return &RBACApplicationService{userRepository: u, roleRepository: r, menuRepository: m, rbacRepository: rb, permCache: permissions.NewUserPermCache(5 * time.Minute)}
+	svc := &RBACApplicationService{userRepository: u, roleRepository: r, menuRepository: m, rbacRepository: rb, permCache: permissions.NewUserPermCache(5 * time.Minute)}
+	if cli := cache.GetRedis(); cli != nil {
+		svc.redisPermCache = permissions.NewRedisUserPermCache(cli, 5*time.Minute)
+	}
+	return svc
 }
 
 // 用户管理
@@ -261,7 +267,7 @@ func (s *RBACApplicationService) BindUserRoles(ctx context.Context, userID uint,
 	if err != nil {
 		return
 	}
-	s.permCache.Invalidate(userID)
+	s.invalidatePermCache([]uint{userID})
 	logger.Info("audit:bind_user_roles", "userId", userID, "roleIds", roleIDs, "added", added, "skipped", skipped)
 	return
 }
@@ -269,7 +275,7 @@ func (s *RBACApplicationService) UnbindUserRoles(ctx context.Context, userID uin
 	if err := s.rbacRepository.UnbindUserRoles(ctx, userID, roleIDs); err != nil {
 		return err
 	}
-	s.permCache.Invalidate(userID)
+	s.invalidatePermCache([]uint{userID})
 	logger.Info("audit:unbind_user_roles", "userId", userID, "roleIds", roleIDs)
 	return nil
 }
@@ -279,7 +285,7 @@ func (s *RBACApplicationService) BindRoleMenus(ctx context.Context, roleID uint,
 		return
 	}
 	userIDs, _ := s.rbacRepository.GetRoleUsers(ctx, roleID)
-	s.permCache.InvalidateUsers(userIDs)
+	s.invalidatePermCache(userIDs)
 	logger.Info("audit:bind_role_menus", "roleId", roleID, "menuIds", menuIDs, "added", added, "skipped", skipped)
 	return
 }
@@ -288,7 +294,7 @@ func (s *RBACApplicationService) UnbindRoleMenus(ctx context.Context, roleID uin
 		return err
 	}
 	userIDs, _ := s.rbacRepository.GetRoleUsers(ctx, roleID)
-	s.permCache.InvalidateUsers(userIDs)
+	s.invalidatePermCache(userIDs)
 	logger.Info("audit:unbind_role_menus", "roleId", roleID, "menuIds", menuIDs)
 	return nil
 }
@@ -353,7 +359,11 @@ func (s *RBACApplicationService) GetUserPerms(ctx context.Context, userID uint) 
 	if userID == 0 { // 未登录或匿名
 		return map[string]struct{}{}, nil
 	}
-	if cached := s.permCache.Get(userID); cached != nil {
+	if s.redisPermCache != nil {
+		if cached, err := s.redisPermCache.Get(ctx, userID); err == nil && cached != nil {
+			return cached, nil
+		}
+	} else if cached := s.permCache.Get(userID); cached != nil {
 		return cached, nil
 	}
 	menus, err := s.rbacRepository.GetUserMenus(ctx, userID)
@@ -366,6 +376,18 @@ func (s *RBACApplicationService) GetUserPerms(ctx context.Context, userID uint) 
 			perms[m.Perms] = struct{}{}
 		}
 	}
+	// 写入缓存（双写策略：内存+redis）
 	s.permCache.Set(userID, perms)
+	if s.redisPermCache != nil {
+		_ = s.redisPermCache.Set(ctx, userID, perms)
+	}
 	return perms, nil
+}
+
+// invalidatePermCache 统一失效（内存+redis）
+func (s *RBACApplicationService) invalidatePermCache(userIDs []uint) {
+	s.permCache.InvalidateUsers(userIDs)
+	if s.redisPermCache != nil {
+		s.redisPermCache.InvalidateUsers(context.Background(), userIDs)
+	}
 }
