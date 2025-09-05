@@ -61,10 +61,5 @@ func (s *UserApplicationService) GetProfile(ctx context.Context, userID uint) (*
 
 // entityToResponse 将实体转换为响应DTO
 func (s *UserApplicationService) entityToResponse(user *entity.User) *dto.UserResponse {
-	return &dto.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		IsActive: user.IsActive,
-	}
+	return &dto.UserResponse{ID: user.ID, Username: user.Username, Email: user.Email, IsActive: user.Status == 0}
 }

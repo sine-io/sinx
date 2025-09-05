@@ -39,12 +39,7 @@ func (s *UserDomainService) CreateUser(ctx context.Context, username, email, pas
 		return nil, errorx.New(errorx.ErrInternalServer, "failed to hash password")
 	}
 
-	user := &entity.User{
-		Username: username,
-		Email:    email,
-		Password: hashedPassword,
-		IsActive: true,
-	}
+	user := &entity.User{Username: username, Email: email, Password: hashedPassword, Status: 0}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
@@ -60,7 +55,7 @@ func (s *UserDomainService) AuthenticateUser(ctx context.Context, username, pass
 		return nil, errorx.NewWithCode(errorx.ErrUserNotFound)
 	}
 
-	if !user.IsActive {
+	if user.Status != 0 {
 		return nil, errorx.NewWithCode(errorx.ErrUserNotFound)
 	}
 
@@ -78,7 +73,7 @@ func (s *UserDomainService) GetUserByID(ctx context.Context, id uint) (*entity.U
 		return nil, errorx.NewWithCode(errorx.ErrUserNotFound)
 	}
 
-	if !user.IsActive {
+	if user.Status != 0 {
 		return nil, errorx.NewWithCode(errorx.ErrUserNotFound)
 	}
 

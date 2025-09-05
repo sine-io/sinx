@@ -8,11 +8,12 @@ import (
 
 	"github.com/sine-io/sinx/api/handler"
 	"github.com/sine-io/sinx/api/router"
+	rbacAppService "github.com/sine-io/sinx/application/rbac/service"
 	userAppService "github.com/sine-io/sinx/application/user/service"
 	userDomainService "github.com/sine-io/sinx/domain/user/service"
 	"github.com/sine-io/sinx/infra/database"
 	"github.com/sine-io/sinx/infra/migration"
-	userRepo "github.com/sine-io/sinx/infra/repository"
+	userRepoInfra "github.com/sine-io/sinx/infra/repository"
 	"github.com/sine-io/sinx/pkg/config"
 	"github.com/sine-io/sinx/pkg/logger"
 
@@ -74,34 +75,34 @@ func initInfrastructure(ctx context.Context) (*Dependencies, error) {
 type Services struct {
 	UserAppService *userAppService.UserApplicationService
 	// 预留: Role/Menu/RBAC 服务
+	RBACAppService *rbacAppService.RBACApplicationService
 }
 
 func initServices(deps *Dependencies) (*Services, error) {
 	// 初始化仓储层
-	userRepository := userRepo.NewUserRepository(deps.DB)
-
-	// TODO: 初始化角色 / 菜单 / RBAC 仓储与服务
+	userRepository := userRepoInfra.NewUserRepository(deps.DB)
+	roleRepository := userRepoInfra.NewRoleRepository(deps.DB)
+	menuRepository := userRepoInfra.NewMenuRepository(deps.DB)
+	rbacRepository := userRepoInfra.NewRBACRepository(deps.DB)
 
 	// 初始化领域服务层
 	userDomainSvc := userDomainService.NewUserDomainService(userRepository)
 
 	// 初始化应用服务层
 	userAppSvc := userAppService.NewUserApplicationService(userDomainSvc)
+	rbacSvc := rbacAppService.NewRBACApplicationService(userRepository, roleRepository, menuRepository, rbacRepository)
 
-	return &Services{
-		UserAppService: userAppSvc,
-	}, nil
+	return &Services{UserAppService: userAppSvc, RBACAppService: rbacSvc}, nil
 }
 
 type Handlers struct {
 	UserHandler *handler.UserHandler
 	// 预留: Role/Menu/RBAC 处理器
+	RBACHandler *handler.RBACHandler
 }
 
 func initHandlers(services *Services) *Handlers {
-	return &Handlers{
-		UserHandler: handler.NewUserHandler(services.UserAppService),
-	}
+	return &Handlers{UserHandler: handler.NewUserHandler(services.UserAppService), RBACHandler: handler.NewRBACHandler(services.RBACAppService)}
 }
 
 func initHTTPServer(handlers *Handlers) *http.Server {
@@ -115,7 +116,7 @@ func initHTTPServer(handlers *Handlers) *http.Server {
 	r := gin.New()
 
 	// 设置路由
-	router.SetupRoutes(r, handlers.UserHandler)
+	router.SetupRoutes(r, handlers.UserHandler, handlers.RBACHandler)
 
 	return &http.Server{
 		Addr:    cfg.ListenAddr,
