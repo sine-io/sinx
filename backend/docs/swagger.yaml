@@ -1,5 +1,42 @@
 basePath: /
 definitions:
+  dto.BindRoleMenuRequest:
+    properties:
+      menuIds:
+        items:
+          type: integer
+        type: array
+      roleId:
+        type: integer
+    required:
+    - menuIds
+    - roleId
+    type: object
+  dto.BindUserRoleRequest:
+    properties:
+      roleIds:
+        items:
+          type: integer
+        type: array
+      userId:
+        type: integer
+    required:
+    - roleIds
+    - userId
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      newPassword:
+        type: string
+      oldPassword:
+        type: string
+      userId:
+        type: integer
+    required:
+    - newPassword
+    - oldPassword
+    - userId
+    type: object
   dto.LoginRequest:
     properties:
       password:
@@ -19,6 +56,55 @@ definitions:
         type: string
       user:
         $ref: '#/definitions/dto.UserResponse'
+    type: object
+  dto.MenuCreateOrUpdateRequest:
+    properties:
+      component:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      isCatch:
+        type: integer
+      isFrame:
+        type: integer
+      isHidden:
+        type: integer
+      menuType:
+        type: string
+      name:
+        type: string
+      orderNum:
+        type: integer
+      parentId:
+        type: integer
+      path:
+        type: string
+      perms:
+        type: string
+      query:
+        type: string
+      remark:
+        type: string
+      status:
+        type: integer
+    required:
+    - isCatch
+    - isFrame
+    - isHidden
+    - menuType
+    - name
+    - orderNum
+    - parentId
+    - status
+    type: object
+  dto.MenuDeleteRequest:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
     type: object
   dto.RegisterRequest:
     properties:
@@ -41,6 +127,77 @@ definitions:
     - password
     - username
     type: object
+  dto.RoleCreateOrUpdateRequest:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      remark:
+        type: string
+      status:
+        type: integer
+    required:
+    - name
+    - status
+    type: object
+  dto.RoleDeleteRequest:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
+    type: object
+  dto.UnbindRoleMenuRequest:
+    properties:
+      menuIds:
+        items:
+          type: integer
+        type: array
+      roleId:
+        type: integer
+    required:
+    - menuIds
+    - roleId
+    type: object
+  dto.UnbindUserRoleRequest:
+    properties:
+      roleIds:
+        items:
+          type: integer
+        type: array
+      userId:
+        type: integer
+    required:
+    - roleIds
+    - userId
+    type: object
+  dto.UserCreateRequest:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      mobile:
+        type: string
+      nickname:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - nickname
+    - password
+    - username
+    type: object
+  dto.UserDeleteRequest:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
+    type: object
   dto.UserResponse:
     properties:
       email:
@@ -56,6 +213,23 @@ definitions:
         example: john_doe
         type: string
     type: object
+  dto.UserUpdateRequest:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      mobile:
+        type: string
+      nickname:
+        type: string
+      status:
+        type: integer
+      username:
+        type: string
+    required:
+    - id
+    type: object
   errorx.ErrorCode:
     enum:
     - 0
@@ -64,6 +238,7 @@ definitions:
     - 10003
     - 10004
     - 10005
+    - 10006
     - 20001
     - 20002
     - 20003
@@ -77,6 +252,7 @@ definitions:
     - ErrUnauthorized
     - ErrForbidden
     - ErrNotFound
+    - ErrHasChildren
     - ErrUserNotFound
     - ErrUserAlreadyExists
     - ErrUserInvalidPassword
@@ -159,6 +335,472 @@ paths:
       summary: 用户注册
       tags:
       - 用户管理
+  /api/menu/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 菜单
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MenuCreateOrUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建菜单
+      tags:
+      - 菜单管理
+  /api/menu/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 删除菜单
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MenuDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除菜单
+      tags:
+      - 菜单管理
+  /api/menu/list:
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: pageNum
+        type: integer
+      - description: 每页
+        in: query
+        name: pageSize
+        type: integer
+      - description: 名称模糊
+        in: query
+        name: name
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单列表
+      tags:
+      - 菜单管理
+  /api/menu/roleMenuTree:
+    get:
+      parameters:
+      - description: 角色ID
+        in: query
+        name: roleId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色菜单树(返回菜单ID集合)
+      tags:
+      - 菜单管理
+  /api/menu/roles:
+    get:
+      parameters:
+      - description: 菜单ID
+        in: query
+        name: menuId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取拥有该菜单的角色列表
+      tags:
+      - 菜单管理
+  /api/menu/tree:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单树
+      tags:
+      - 菜单管理
+  /api/menu/update:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 菜单
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MenuCreateOrUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新菜单
+      tags:
+      - 菜单管理
+  /api/role/bindMenu:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 绑定菜单
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BindRoleMenuRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 绑定角色菜单
+      tags:
+      - 角色管理
+  /api/role/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 角色
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RoleCreateOrUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建角色
+      tags:
+      - 角色管理
+  /api/role/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 删除角色
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RoleDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除角色
+      tags:
+      - 角色管理
+  /api/role/list:
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: pageNum
+        type: integer
+      - description: 每页大小
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色列表
+      tags:
+      - 角色管理
+  /api/role/menus:
+    get:
+      parameters:
+      - description: 角色ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色菜单列表
+      tags:
+      - 角色管理
+  /api/role/unbindMenu:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 解绑菜单
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UnbindRoleMenuRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 解绑角色菜单
+      tags:
+      - 角色管理
+  /api/role/update:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 角色
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RoleCreateOrUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新角色
+      tags:
+      - 角色管理
+  /api/role/users:
+    get:
+      parameters:
+      - description: 角色ID
+        in: query
+        name: roleId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取拥有该角色的用户列表
+      tags:
+      - 角色管理
+  /api/user/bindRole:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 绑定角色
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BindUserRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 绑定用户角色
+      tags:
+      - 用户管理
+  /api/user/changePassword:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 修改密码
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改密码
+      tags:
+      - 用户管理
+  /api/user/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 创建用户参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建用户
+      tags:
+      - 用户管理
+  /api/user/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 删除用户参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除用户
+      tags:
+      - 用户管理
+  /api/user/list:
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: pageNum
+        type: integer
+      - description: 每页大小
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户列表
+      tags:
+      - 用户管理
+  /api/user/menus:
+    get:
+      parameters:
+      - description: 用户ID(可选)
+        in: query
+        name: userId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户菜单树
+      tags:
+      - 用户管理
   /api/user/profile:
     get:
       consumes:
@@ -183,6 +825,72 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 获取用户资料
+      tags:
+      - 用户管理
+  /api/user/roles:
+    get:
+      parameters:
+      - description: 用户ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户角色列表
+      tags:
+      - 用户管理
+  /api/user/unbindRole:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 解绑角色
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UnbindUserRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 解绑用户角色
+      tags:
+      - 用户管理
+  /api/user/update:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 更新用户参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新用户
       tags:
       - 用户管理
 schemes:
