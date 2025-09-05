@@ -144,11 +144,12 @@ func (h *RBACHandler) BindUserRole(c *gin.Context) {
 		response.ErrorWithCode(c, errorx.ErrInvalidParam)
 		return
 	}
-	if err := h.svc.BindUserRoles(c, req.UserID, req.RoleIDs); err != nil {
+	added, skipped, err := h.svc.BindUserRoles(c, req.UserID, req.RoleIDs)
+	if err != nil {
 		response.InternalError(c, err)
 		return
 	}
-	response.Success(c, nil)
+	response.Success(c, gin.H{"added": added, "skipped": skipped})
 }
 
 // UnbindUserRole 解绑角色
@@ -314,11 +315,12 @@ func (h *RBACHandler) BindRoleMenu(c *gin.Context) {
 		response.ErrorWithCode(c, errorx.ErrInvalidParam)
 		return
 	}
-	if err := h.svc.BindRoleMenus(c, req.RoleID, req.MenuIDs); err != nil {
+	added, skipped, err := h.svc.BindRoleMenus(c, req.RoleID, req.MenuIDs)
+	if err != nil {
 		response.InternalError(c, err)
 		return
 	}
-	response.Success(c, nil)
+	response.Success(c, gin.H{"added": added, "skipped": skipped})
 }
 
 // UnbindRoleMenu 解绑菜单

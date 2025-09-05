@@ -9,10 +9,10 @@ import (
 )
 
 type RBACRepository interface {
-	BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error
+	BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) (added int, skipped int, err error)
 	UnbindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error
 	GetUserRoles(ctx context.Context, userID uint) ([]*roleEntity.Role, error)
-	BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error
+	BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) (added int, skipped int, err error)
 	UnbindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error
 	GetRoleMenus(ctx context.Context, roleID uint) ([]*menuEntity.Menu, error)
 	GetUserMenus(ctx context.Context, userID uint) ([]*menuEntity.Menu, error)

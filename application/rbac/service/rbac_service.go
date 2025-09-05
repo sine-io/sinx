@@ -256,14 +256,14 @@ func buildMenuTree(menus []*menuEntity.Menu, parentID uint) []*rbacdto.MenuTreeN
 }
 
 // 绑定解绑
-func (s *RBACApplicationService) BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
-	if err := s.rbacRepository.BindUserRoles(ctx, userID, roleIDs); err != nil {
-		return err
+func (s *RBACApplicationService) BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) (added, skipped int, err error) {
+	added, skipped, err = s.rbacRepository.BindUserRoles(ctx, userID, roleIDs)
+	if err != nil {
+		return
 	}
-	// 角色变化 -> 清除该用户权限缓存
 	s.permCache.Invalidate(userID)
-	logger.Info("audit:bind_user_roles", "userId", userID, "roleIds", roleIDs)
-	return nil
+	logger.Info("audit:bind_user_roles", "userId", userID, "roleIds", roleIDs, "added", added, "skipped", skipped)
+	return
 }
 func (s *RBACApplicationService) UnbindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
 	if err := s.rbacRepository.UnbindUserRoles(ctx, userID, roleIDs); err != nil {
@@ -273,15 +273,15 @@ func (s *RBACApplicationService) UnbindUserRoles(ctx context.Context, userID uin
 	logger.Info("audit:unbind_user_roles", "userId", userID, "roleIds", roleIDs)
 	return nil
 }
-func (s *RBACApplicationService) BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
-	if err := s.rbacRepository.BindRoleMenus(ctx, roleID, menuIDs); err != nil {
-		return err
+func (s *RBACApplicationService) BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) (added, skipped int, err error) {
+	added, skipped, err = s.rbacRepository.BindRoleMenus(ctx, roleID, menuIDs)
+	if err != nil {
+		return
 	}
-	// 找到该角色下的所有用户，批量失效
 	userIDs, _ := s.rbacRepository.GetRoleUsers(ctx, roleID)
 	s.permCache.InvalidateUsers(userIDs)
-	logger.Info("audit:bind_role_menus", "roleId", roleID, "menuIds", menuIDs)
-	return nil
+	logger.Info("audit:bind_role_menus", "roleId", roleID, "menuIds", menuIDs, "added", added, "skipped", skipped)
+	return
 }
 func (s *RBACApplicationService) UnbindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
 	if err := s.rbacRepository.UnbindRoleMenus(ctx, roleID, menuIDs); err != nil {

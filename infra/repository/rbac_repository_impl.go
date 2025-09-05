@@ -16,16 +16,25 @@ type rbacRepositoryImpl struct{ db *gorm.DB }
 
 func NewRBACRepository(db *gorm.DB) rbacRepo.RBACRepository { return &rbacRepositoryImpl{db: db} }
 
-func (r *rbacRepositoryImpl) BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (r *rbacRepositoryImpl) BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) (int, int, error) {
+	added := 0
+	skipped := 0
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, rid := range roleIDs {
 			ur := &rbacEntity.UserRole{UserID: userID, RoleID: rid}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(ur).Error; err != nil {
-				return err
+			res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(ur)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				skipped++
+			} else {
+				added++
 			}
 		}
 		return nil
 	})
+	return added, skipped, err
 }
 
 func (r *rbacRepositoryImpl) UnbindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
@@ -38,16 +47,25 @@ func (r *rbacRepositoryImpl) GetUserRoles(ctx context.Context, userID uint) ([]*
 	return roles, err
 }
 
-func (r *rbacRepositoryImpl) BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (r *rbacRepositoryImpl) BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) (int, int, error) {
+	added := 0
+	skipped := 0
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, mid := range menuIDs {
 			rm := &rbacEntity.RoleMenu{RoleID: roleID, MenuID: mid}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(rm).Error; err != nil {
-				return err
+			res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(rm)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				skipped++
+			} else {
+				added++
 			}
 		}
 		return nil
 	})
+	return added, skipped, err
 }
 
 func (r *rbacRepositoryImpl) UnbindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
