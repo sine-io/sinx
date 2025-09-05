@@ -30,7 +30,13 @@ func SetupRoutes(r *gin.Engine, userHandler *handler.UserHandler) {
 		user.Use(middleware.AuthMiddleware())
 		{
 			user.GET("/profile", userHandler.GetProfile)
+			// TODO: /api/user/create /api/user/list 等 RBAC 用户管理接口
 		}
+
+		// 预留角色、菜单管理路由组
+		// role := api.Group("/role").Use(middleware.AuthMiddleware())
+		// menu := api.Group("/menu").Use(middleware.AuthMiddleware())
+		// TODO: 添加角色与菜单处理器后注册接口
 	}
 
 	// 健康检查路由

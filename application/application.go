@@ -73,11 +73,14 @@ func initInfrastructure(ctx context.Context) (*Dependencies, error) {
 
 type Services struct {
 	UserAppService *userAppService.UserApplicationService
+	// 预留: Role/Menu/RBAC 服务
 }
 
 func initServices(deps *Dependencies) (*Services, error) {
 	// 初始化仓储层
 	userRepository := userRepo.NewUserRepository(deps.DB)
+
+	// TODO: 初始化角色 / 菜单 / RBAC 仓储与服务
 
 	// 初始化领域服务层
 	userDomainSvc := userDomainService.NewUserDomainService(userRepository)
@@ -92,6 +95,7 @@ func initServices(deps *Dependencies) (*Services, error) {
 
 type Handlers struct {
 	UserHandler *handler.UserHandler
+	// 预留: Role/Menu/RBAC 处理器
 }
 
 func initHandlers(services *Services) *Handlers {
