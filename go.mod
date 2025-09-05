@@ -13,7 +13,9 @@ require (
 	github.com/swaggo/swag v1.16.3
 	go.uber.org/zap v1.26.0
 	gorm.io/driver/postgres v1.5.2
-	gorm.io/gorm v1.25.4
+	gorm.io/driver/sqlite v1.5.5 // indirect replaced by purego build tag not feasible; keep but tests need cgo -> switch to modernc driver in tests
+	modernc.org/sqlite v1.37.0
+	gorm.io/gorm v1.25.7-0.20240204074919-46816ad31dde
 )
 
 require (
@@ -43,6 +45,7 @@ require (
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect

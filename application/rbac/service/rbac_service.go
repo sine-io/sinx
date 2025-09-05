@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	rbacdto "github.com/sine-io/sinx/application/rbac/dto"
 	menuEntity "github.com/sine-io/sinx/domain/menu/entity"
@@ -12,6 +13,8 @@ import (
 	userEntity "github.com/sine-io/sinx/domain/user/entity"
 	userRepo "github.com/sine-io/sinx/domain/user/repository"
 	"github.com/sine-io/sinx/pkg/errorx"
+	"github.com/sine-io/sinx/pkg/logger"
+	"github.com/sine-io/sinx/pkg/permissions"
 	"github.com/sine-io/sinx/pkg/utils"
 )
 
@@ -20,17 +23,22 @@ type RBACApplicationService struct {
 	roleRepository roleRepo.RoleRepository
 	menuRepository menuRepo.MenuRepository
 	rbacRepository rbacRepo.RBACRepository
+	permCache      *permissions.UserPermCache
 }
 
 func NewRBACApplicationService(u userRepo.UserRepository, r roleRepo.RoleRepository, m menuRepo.MenuRepository, rb rbacRepo.RBACRepository) *RBACApplicationService {
-	return &RBACApplicationService{userRepository: u, roleRepository: r, menuRepository: m, rbacRepository: rb}
+	return &RBACApplicationService{userRepository: u, roleRepository: r, menuRepository: m, rbacRepository: rb, permCache: permissions.NewUserPermCache(5 * time.Minute)}
 }
 
 // 用户管理
 func (s *RBACApplicationService) CreateUser(ctx context.Context, req *rbacdto.UserCreateRequest) error {
 	hashed, _ := utils.HashPassword(req.Password)
 	user := &userEntity.User{Username: req.Username, Password: hashed, Nickname: req.Nickname, Email: req.Email, Mobile: req.Mobile, Avatar: req.Avatar}
-	return s.userRepository.Create(ctx, user)
+	if err := s.userRepository.Create(ctx, user); err != nil {
+		return err
+	}
+	logger.Info("audit:create_user", "username", req.Username, "nickname", req.Nickname)
+	return nil
 }
 
 func (s *RBACApplicationService) UpdateUser(ctx context.Context, req *rbacdto.UserUpdateRequest) error {
@@ -53,11 +61,19 @@ func (s *RBACApplicationService) UpdateUser(ctx context.Context, req *rbacdto.Us
 	if req.Status != nil {
 		user.Status = *req.Status
 	}
-	return s.userRepository.Update(ctx, user)
+	if err := s.userRepository.Update(ctx, user); err != nil {
+		return err
+	}
+	logger.Info("audit:update_user", "id", user.ID)
+	return nil
 }
 
 func (s *RBACApplicationService) DeleteUser(ctx context.Context, id uint) error {
-	return s.userRepository.Delete(ctx, id)
+	if err := s.userRepository.Delete(ctx, id); err != nil {
+		return err
+	}
+	logger.Info("audit:delete_user", "id", id)
+	return nil
 }
 
 func (s *RBACApplicationService) ListUsers(ctx context.Context, pageNum, pageSize int) (int64, []*rbacdto.UserSimple, error) {
@@ -91,13 +107,21 @@ func (s *RBACApplicationService) ChangePassword(ctx context.Context, req *rbacdt
 	}
 	hashed, _ := utils.HashPassword(req.NewPassword)
 	user.Password = hashed
-	return s.userRepository.Update(ctx, user)
+	if err := s.userRepository.Update(ctx, user); err != nil {
+		return err
+	}
+	logger.Info("audit:change_password", "userId", req.UserID)
+	return nil
 }
 
 // 角色管理
 func (s *RBACApplicationService) CreateOrUpdateRole(ctx context.Context, req *rbacdto.RoleCreateOrUpdateRequest) error {
 	if req.ID == 0 {
-		return s.roleRepository.Create(ctx, &roleEntity.Role{Name: req.Name, Remark: req.Remark, Status: req.Status})
+		if err := s.roleRepository.Create(ctx, &roleEntity.Role{Name: req.Name, Remark: req.Remark, Status: req.Status}); err != nil {
+			return err
+		}
+		logger.Info("audit:create_role", "name", req.Name)
+		return nil
 	}
 	role, err := s.roleRepository.GetByID(ctx, req.ID)
 	if err != nil {
@@ -106,11 +130,19 @@ func (s *RBACApplicationService) CreateOrUpdateRole(ctx context.Context, req *rb
 	role.Name = req.Name
 	role.Remark = req.Remark
 	role.Status = req.Status
-	return s.roleRepository.Update(ctx, role)
+	if err := s.roleRepository.Update(ctx, role); err != nil {
+		return err
+	}
+	logger.Info("audit:update_role", "id", role.ID)
+	return nil
 }
 
 func (s *RBACApplicationService) DeleteRole(ctx context.Context, id uint) error {
-	return s.roleRepository.Delete(ctx, id)
+	if err := s.roleRepository.Delete(ctx, id); err != nil {
+		return err
+	}
+	logger.Info("audit:delete_role", "id", id)
+	return nil
 }
 
 func (s *RBACApplicationService) ListRoles(ctx context.Context, pageNum, pageSize int) (int64, []*rbacdto.RoleSimple, error) {
@@ -136,7 +168,11 @@ func (s *RBACApplicationService) ListRoles(ctx context.Context, pageNum, pageSiz
 // 菜单管理
 func (s *RBACApplicationService) CreateOrUpdateMenu(ctx context.Context, req *rbacdto.MenuCreateOrUpdateRequest) error {
 	if req.ID == 0 {
-		return s.menuRepository.Create(ctx, &menuEntity.Menu{Name: req.Name, ParentID: req.ParentID, OrderNum: req.OrderNum, Path: req.Path, Component: req.Component, Query: req.Query, IsFrame: req.IsFrame, MenuType: req.MenuType, IsCatch: req.IsCatch, IsHidden: req.IsHidden, Perms: req.Perms, Icon: req.Icon, Status: req.Status, Remark: req.Remark})
+		if err := s.menuRepository.Create(ctx, &menuEntity.Menu{Name: req.Name, ParentID: req.ParentID, OrderNum: req.OrderNum, Path: req.Path, Component: req.Component, Query: req.Query, IsFrame: req.IsFrame, MenuType: req.MenuType, IsCatch: req.IsCatch, IsHidden: req.IsHidden, Perms: req.Perms, Icon: req.Icon, Status: req.Status, Remark: req.Remark}); err != nil {
+			return err
+		}
+		logger.Info("audit:create_menu", "name", req.Name)
+		return nil
 	}
 	menu, err := s.menuRepository.GetByID(ctx, req.ID)
 	if err != nil {
@@ -156,7 +192,11 @@ func (s *RBACApplicationService) CreateOrUpdateMenu(ctx context.Context, req *rb
 	menu.Icon = req.Icon
 	menu.Status = req.Status
 	menu.Remark = req.Remark
-	return s.menuRepository.Update(ctx, menu)
+	if err := s.menuRepository.Update(ctx, menu); err != nil {
+		return err
+	}
+	logger.Info("audit:update_menu", "id", menu.ID)
+	return nil
 }
 
 func (s *RBACApplicationService) DeleteMenu(ctx context.Context, id uint) error {
@@ -167,7 +207,11 @@ func (s *RBACApplicationService) DeleteMenu(ctx context.Context, id uint) error 
 	if hasChild {
 		return errorx.NewWithCode(errorx.ErrHasChildren)
 	}
-	return s.menuRepository.Delete(ctx, id)
+	if err := s.menuRepository.Delete(ctx, id); err != nil {
+		return err
+	}
+	logger.Info("audit:delete_menu", "id", id)
+	return nil
 }
 
 func (s *RBACApplicationService) ListMenus(ctx context.Context, pageNum, pageSize int, name string, status *int) (int64, []*rbacdto.MenuSimple, error) {
@@ -213,16 +257,40 @@ func buildMenuTree(menus []*menuEntity.Menu, parentID uint) []*rbacdto.MenuTreeN
 
 // 绑定解绑
 func (s *RBACApplicationService) BindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
-	return s.rbacRepository.BindUserRoles(ctx, userID, roleIDs)
+	if err := s.rbacRepository.BindUserRoles(ctx, userID, roleIDs); err != nil {
+		return err
+	}
+	// 角色变化 -> 清除该用户权限缓存
+	s.permCache.Invalidate(userID)
+	logger.Info("audit:bind_user_roles", "userId", userID, "roleIds", roleIDs)
+	return nil
 }
 func (s *RBACApplicationService) UnbindUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
-	return s.rbacRepository.UnbindUserRoles(ctx, userID, roleIDs)
+	if err := s.rbacRepository.UnbindUserRoles(ctx, userID, roleIDs); err != nil {
+		return err
+	}
+	s.permCache.Invalidate(userID)
+	logger.Info("audit:unbind_user_roles", "userId", userID, "roleIds", roleIDs)
+	return nil
 }
 func (s *RBACApplicationService) BindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
-	return s.rbacRepository.BindRoleMenus(ctx, roleID, menuIDs)
+	if err := s.rbacRepository.BindRoleMenus(ctx, roleID, menuIDs); err != nil {
+		return err
+	}
+	// 找到该角色下的所有用户，批量失效
+	userIDs, _ := s.rbacRepository.GetRoleUsers(ctx, roleID)
+	s.permCache.InvalidateUsers(userIDs)
+	logger.Info("audit:bind_role_menus", "roleId", roleID, "menuIds", menuIDs)
+	return nil
 }
 func (s *RBACApplicationService) UnbindRoleMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
-	return s.rbacRepository.UnbindRoleMenus(ctx, roleID, menuIDs)
+	if err := s.rbacRepository.UnbindRoleMenus(ctx, roleID, menuIDs); err != nil {
+		return err
+	}
+	userIDs, _ := s.rbacRepository.GetRoleUsers(ctx, roleID)
+	s.permCache.InvalidateUsers(userIDs)
+	logger.Info("audit:unbind_role_menus", "roleId", roleID, "menuIds", menuIDs)
+	return nil
 }
 
 func (s *RBACApplicationService) GetUserRoles(ctx context.Context, userID uint) ([]*rbacdto.RoleSimple, error) {
@@ -282,6 +350,12 @@ func (s *RBACApplicationService) GetRoleMenuTree(ctx context.Context, roleID uin
 
 // GetUserPerms 返回用户拥有的权限标识集合
 func (s *RBACApplicationService) GetUserPerms(ctx context.Context, userID uint) (map[string]struct{}, error) {
+	if userID == 0 { // 未登录或匿名
+		return map[string]struct{}{}, nil
+	}
+	if cached := s.permCache.Get(userID); cached != nil {
+		return cached, nil
+	}
 	menus, err := s.rbacRepository.GetUserMenus(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -292,5 +366,6 @@ func (s *RBACApplicationService) GetUserPerms(ctx context.Context, userID uint) 
 			perms[m.Perms] = struct{}{}
 		}
 	}
+	s.permCache.Set(userID, perms)
 	return perms, nil
 }

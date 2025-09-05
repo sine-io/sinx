@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sine-io/sinx/api/handler"
 	"github.com/sine-io/sinx/api/middleware"
+	"github.com/sine-io/sinx/pkg/permissions"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -76,6 +77,11 @@ func SetupRoutes(r *gin.Engine, userHandler *handler.UserHandler, rbacHandler *h
 			menu.GET("/tree", rbacHandler.MenuTree)
 			menu.GET("/roleMenuTree", middleware.PermissionMiddleware("menu:roleMenuTree", permChecker), rbacHandler.GetRoleMenuTree)
 		}
+
+		// 导出所有权限（需登录，便于前端动态渲染）
+		api.GET("/perms/all", middleware.AuthMiddleware(), func(c *gin.Context) {
+			c.JSON(200, gin.H{"code": 0, "data": permissions.AllPerms})
+		})
 	}
 
 	// 健康检查路由
