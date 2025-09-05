@@ -17,6 +17,9 @@ type RBACHandler struct {
 
 func NewRBACHandler(s *rbacService.RBACApplicationService) *RBACHandler { return &RBACHandler{svc: s} }
 
+// Service 暴露内部应用服务（供路由层构建权限检查器使用）
+func (h *RBACHandler) Service() *rbacService.RBACApplicationService { return h.svc }
+
 // 用户接口
 // CreateUser 创建用户
 // @Summary 创建用户
@@ -39,6 +42,16 @@ func (h *RBACHandler) CreateUser(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UpdateUser 更新用户
+// @Summary 更新用户
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.UserUpdateRequest true "更新用户参数"
+// @Success 200 {object} response.Response
+// @Router /api/user/update [post]
 func (h *RBACHandler) UpdateUser(c *gin.Context) {
 	var req rbacdto.UserUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -51,6 +64,16 @@ func (h *RBACHandler) UpdateUser(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// DeleteUser 删除用户
+// @Summary 删除用户
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.UserDeleteRequest true "删除用户参数"
+// @Success 200 {object} response.Response
+// @Router /api/user/delete [post]
 func (h *RBACHandler) DeleteUser(c *gin.Context) {
 	var req rbacdto.UserDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -83,6 +106,16 @@ func (h *RBACHandler) UserList(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"total": total, "data": list})
 }
+
+// ChangePassword 修改密码
+// @Summary 修改密码
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.ChangePasswordRequest true "修改密码"
+// @Success 200 {object} response.Response
+// @Router /api/user/changePassword [post]
 func (h *RBACHandler) ChangePassword(c *gin.Context) {
 	var req rbacdto.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -95,6 +128,16 @@ func (h *RBACHandler) ChangePassword(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// BindUserRole 绑定角色
+// @Summary 绑定用户角色
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.BindUserRoleRequest true "绑定角色"
+// @Success 200 {object} response.Response
+// @Router /api/user/bindRole [post]
 func (h *RBACHandler) BindUserRole(c *gin.Context) {
 	var req rbacdto.BindUserRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -107,6 +150,16 @@ func (h *RBACHandler) BindUserRole(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UnbindUserRole 解绑角色
+// @Summary 解绑用户角色
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.UnbindUserRoleRequest true "解绑角色"
+// @Success 200 {object} response.Response
+// @Router /api/user/unbindRole [post]
 func (h *RBACHandler) UnbindUserRole(c *gin.Context) {
 	var req rbacdto.UnbindUserRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -119,6 +172,15 @@ func (h *RBACHandler) UnbindUserRole(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// GetUserRoles 用户角色列表
+// @Summary 获取用户角色列表
+// @Tags 用户管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id query int true "用户ID"
+// @Success 200 {object} response.Response
+// @Router /api/user/roles [get]
 func (h *RBACHandler) GetUserRoles(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr == "" {
@@ -133,6 +195,15 @@ func (h *RBACHandler) GetUserRoles(c *gin.Context) {
 	}
 	response.Success(c, roles)
 }
+
+// GetUserMenus 用户菜单树
+// @Summary 获取用户菜单树
+// @Tags 用户管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param userId query int false "用户ID(可选)"
+// @Success 200 {object} response.Response
+// @Router /api/user/menus [get]
 func (h *RBACHandler) GetUserMenus(c *gin.Context) {
 	idStr := c.Query("userId")
 	var id uint
@@ -174,7 +245,27 @@ func (h *RBACHandler) CreateRole(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UpdateRole 更新角色
+// @Summary 更新角色
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.RoleCreateOrUpdateRequest true "角色"
+// @Success 200 {object} response.Response
+// @Router /api/role/update [post]
 func (h *RBACHandler) UpdateRole(c *gin.Context) { h.CreateRole(c) }
+
+// DeleteRole 删除角色
+// @Summary 删除角色
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.RoleDeleteRequest true "删除角色"
+// @Success 200 {object} response.Response
+// @Router /api/role/delete [post]
 func (h *RBACHandler) DeleteRole(c *gin.Context) {
 	var req rbacdto.RoleDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -207,6 +298,16 @@ func (h *RBACHandler) RoleList(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"total": total, "data": list})
 }
+
+// BindRoleMenu 绑定菜单
+// @Summary 绑定角色菜单
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.BindRoleMenuRequest true "绑定菜单"
+// @Success 200 {object} response.Response
+// @Router /api/role/bindMenu [post]
 func (h *RBACHandler) BindRoleMenu(c *gin.Context) {
 	var req rbacdto.BindRoleMenuRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -219,6 +320,16 @@ func (h *RBACHandler) BindRoleMenu(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UnbindRoleMenu 解绑菜单
+// @Summary 解绑角色菜单
+// @Tags 角色管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.UnbindRoleMenuRequest true "解绑菜单"
+// @Success 200 {object} response.Response
+// @Router /api/role/unbindMenu [post]
 func (h *RBACHandler) UnbindRoleMenu(c *gin.Context) {
 	var req rbacdto.UnbindRoleMenuRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -231,6 +342,15 @@ func (h *RBACHandler) UnbindRoleMenu(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// GetRoleMenus 角色菜单列表
+// @Summary 获取角色菜单列表
+// @Tags 角色管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id query int true "角色ID"
+// @Success 200 {object} response.Response
+// @Router /api/role/menus [get]
 func (h *RBACHandler) GetRoleMenus(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr == "" {
@@ -245,9 +365,25 @@ func (h *RBACHandler) GetRoleMenus(c *gin.Context) {
 	}
 	response.Success(c, menus)
 }
-func (h *RBACHandler) GetRoleUsers(c *gin.Context) { /* 可扩展: 查询拥有该角色的用户 */
-	response.Success(c, []any{})
-}
+
+// GetRoleUsers 拥有该角色的用户列表(占位)
+// @Summary 获取拥有该角色的用户列表
+// @Tags 角色管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param roleId query int true "角色ID"
+// @Success 200 {object} response.Response
+// @Router /api/role/users [get]
+func (h *RBACHandler) GetRoleUsers(c *gin.Context) { response.Success(c, []any{}) }
+
+// GetRoleMenuTree 角色菜单ID集合
+// @Summary 获取角色菜单树(返回菜单ID集合)
+// @Tags 菜单管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param roleId query int true "角色ID"
+// @Success 200 {object} response.Response
+// @Router /api/menu/roleMenuTree [get]
 func (h *RBACHandler) GetRoleMenuTree(c *gin.Context) {
 	roleIdStr := c.Query("roleId")
 	if roleIdStr == "" {
@@ -285,7 +421,27 @@ func (h *RBACHandler) CreateMenu(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// UpdateMenu 更新菜单
+// @Summary 更新菜单
+// @Tags 菜单管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.MenuCreateOrUpdateRequest true "菜单"
+// @Success 200 {object} response.Response
+// @Router /api/menu/update [post]
 func (h *RBACHandler) UpdateMenu(c *gin.Context) { h.CreateMenu(c) }
+
+// DeleteMenu 删除菜单
+// @Summary 删除菜单
+// @Tags 菜单管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body rbacdto.MenuDeleteRequest true "删除菜单"
+// @Success 200 {object} response.Response
+// @Router /api/menu/delete [post]
 func (h *RBACHandler) DeleteMenu(c *gin.Context) {
 	var req rbacdto.MenuDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -298,6 +454,18 @@ func (h *RBACHandler) DeleteMenu(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// MenuList 菜单列表
+// @Summary 获取菜单列表
+// @Tags 菜单管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param pageNum query int false "页码"
+// @Param pageSize query int false "每页"
+// @Param name query string false "名称模糊"
+// @Param status query int false "状态"
+// @Success 200 {object} response.Response
+// @Router /api/menu/list [get]
 func (h *RBACHandler) MenuList(c *gin.Context) {
 	pageNum, _ := strconv.Atoi(c.DefaultQuery("pageNum", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -330,6 +498,15 @@ func (h *RBACHandler) MenuTree(c *gin.Context) {
 	}
 	response.Success(c, tree)
 }
+
+// MenuRoles 拥有该菜单的角色列表
+// @Summary 获取拥有该菜单的角色列表
+// @Tags 菜单管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param menuId query int true "菜单ID"
+// @Success 200 {object} response.Response
+// @Router /api/menu/roles [get]
 func (h *RBACHandler) MenuRoles(c *gin.Context) {
 	menuStr := c.Query("menuId")
 	if menuStr == "" {

@@ -85,7 +85,10 @@ func (s *RBACApplicationService) ChangePassword(ctx context.Context, req *rbacdt
 	if err != nil {
 		return err
 	}
-	// 简化：忽略旧密码校验（可扩展）
+	// 旧密码校验
+	if !utils.CheckPassword(req.OldPassword, user.Password) {
+		return errorx.NewWithCode(errorx.ErrUserInvalidPassword)
+	}
 	hashed, _ := utils.HashPassword(req.NewPassword)
 	user.Password = hashed
 	return s.userRepository.Update(ctx, user)

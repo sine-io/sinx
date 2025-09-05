@@ -1,10 +1,9 @@
 package router
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/sine-io/sinx/api/handler"
 	"github.com/sine-io/sinx/api/middleware"
-
-	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -26,42 +25,56 @@ func SetupRoutes(r *gin.Engine, userHandler *handler.UserHandler, rbacHandler *h
 		}
 
 		// 用户相关路由（需要JWT验证）
+		// 简单权限检查器（每次实时查询，可后续增加缓存）
+		permChecker := func(c *gin.Context, required string) bool {
+			uid, ok := middleware.GetUserID(c)
+			if !ok {
+				return false
+			}
+			perms, err := rbacHandler.Service().GetUserPerms(c, uid)
+			if err != nil {
+				return false
+			}
+			_, exist := perms[required]
+			return exist
+		}
+
 		user := api.Group("/user")
 		user.Use(middleware.AuthMiddleware())
 		{
 			user.GET("/profile", userHandler.GetProfile)
-			user.POST("/create", rbacHandler.CreateUser)
-			user.GET("/list", rbacHandler.UserList)
-			user.POST("/update", rbacHandler.UpdateUser)
-			user.POST("/delete", rbacHandler.DeleteUser)
+			user.POST("/create", middleware.PermissionMiddleware("user:create", permChecker), rbacHandler.CreateUser)
+			user.GET("/list", middleware.PermissionMiddleware("user:list", permChecker), rbacHandler.UserList)
+			user.POST("/update", middleware.PermissionMiddleware("user:update", permChecker), rbacHandler.UpdateUser)
+			user.POST("/delete", middleware.PermissionMiddleware("user:delete", permChecker), rbacHandler.DeleteUser)
 			user.POST("/changePassword", rbacHandler.ChangePassword)
-			user.POST("/bindRole", rbacHandler.BindUserRole)
-			user.POST("/unbindRole", rbacHandler.UnbindUserRole)
-			user.GET("/roles", rbacHandler.GetUserRoles)
+			user.POST("/bindRole", middleware.PermissionMiddleware("user:bindRole", permChecker), rbacHandler.BindUserRole)
+			user.POST("/unbindRole", middleware.PermissionMiddleware("user:unbindRole", permChecker), rbacHandler.UnbindUserRole)
+			user.GET("/roles", middleware.PermissionMiddleware("user:roles", permChecker), rbacHandler.GetUserRoles)
 			user.GET("/menus", rbacHandler.GetUserMenus)
 		}
 
 		role := api.Group("/role").Use(middleware.AuthMiddleware())
 		{
-			role.POST("/create", rbacHandler.CreateRole)
-			role.GET("/list", rbacHandler.RoleList)
-			role.POST("/update", rbacHandler.UpdateRole)
-			role.POST("/delete", rbacHandler.DeleteRole)
-			role.POST("/bindMenu", rbacHandler.BindRoleMenu)
-			role.POST("/unbindMenu", rbacHandler.UnbindRoleMenu)
-			role.GET("/menus", rbacHandler.GetRoleMenus)
-			role.GET("/users", rbacHandler.GetRoleUsers)
+			role.POST("/create", middleware.PermissionMiddleware("role:create", permChecker), rbacHandler.CreateRole)
+			role.GET("/list", middleware.PermissionMiddleware("role:list", permChecker), rbacHandler.RoleList)
+			role.POST("/update", middleware.PermissionMiddleware("role:update", permChecker), rbacHandler.UpdateRole)
+			role.POST("/delete", middleware.PermissionMiddleware("role:delete", permChecker), rbacHandler.DeleteRole)
+			role.POST("/bindMenu", middleware.PermissionMiddleware("role:bindMenu", permChecker), rbacHandler.BindRoleMenu)
+			role.POST("/unbindMenu", middleware.PermissionMiddleware("role:unbindMenu", permChecker), rbacHandler.UnbindRoleMenu)
+			role.GET("/menus", middleware.PermissionMiddleware("role:menus", permChecker), rbacHandler.GetRoleMenus)
+			role.GET("/users", middleware.PermissionMiddleware("role:users", permChecker), rbacHandler.GetRoleUsers)
 		}
 
 		menu := api.Group("/menu").Use(middleware.AuthMiddleware())
 		{
-			menu.POST("/create", rbacHandler.CreateMenu)
-			menu.GET("/list", rbacHandler.MenuList)
-			menu.POST("/update", rbacHandler.UpdateMenu)
-			menu.POST("/delete", rbacHandler.DeleteMenu)
-			menu.GET("/roles", rbacHandler.MenuRoles)
+			menu.POST("/create", middleware.PermissionMiddleware("menu:create", permChecker), rbacHandler.CreateMenu)
+			menu.GET("/list", middleware.PermissionMiddleware("menu:list", permChecker), rbacHandler.MenuList)
+			menu.POST("/update", middleware.PermissionMiddleware("menu:update", permChecker), rbacHandler.UpdateMenu)
+			menu.POST("/delete", middleware.PermissionMiddleware("menu:delete", permChecker), rbacHandler.DeleteMenu)
+			menu.GET("/roles", middleware.PermissionMiddleware("menu:roles", permChecker), rbacHandler.MenuRoles)
 			menu.GET("/tree", rbacHandler.MenuTree)
-			menu.GET("/roleMenuTree", rbacHandler.GetRoleMenuTree)
+			menu.GET("/roleMenuTree", middleware.PermissionMiddleware("menu:roleMenuTree", permChecker), rbacHandler.GetRoleMenuTree)
 		}
 	}
 
