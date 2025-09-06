@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { getProfile, getUserList, getRoleList, getMenuList } from '../utils/api'
 import { getToken } from '../utils/auth'
+import * as echarts from 'echarts'
 
 type Stat = { label: string; value: number; link?: string }
 
@@ -16,6 +17,31 @@ const stats = ref<Stat[]>([
   { label: '角色数', value: 0, link: '/system/role' },
   { label: '菜单数', value: 0, link: '/system/menu' },
 ])
+
+// ECharts
+const chartRef = ref<HTMLDivElement | null>(null)
+let chart: echarts.ECharts | null = null
+function renderChart() {
+  if (!chartRef.value) return
+  if (!chart) {
+    chart = echarts.init(chartRef.value)
+  }
+  const days = Array.from({ length: 14 }, (_, i) => `D${i + 1}`)
+  const dataA = days.map((_d, i) => Math.round(30 + Math.sin(i / 2) * 10 + Math.random() * 8))
+  const dataB = days.map((_d, i) => Math.round(15 + Math.cos(i / 2) * 6 + Math.random() * 6))
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 40, right: 20, top: 30, bottom: 30 },
+    xAxis: { type: 'category', data: days, boundaryGap: false },
+    yAxis: { type: 'value' },
+    legend: { data: ['活跃用户', '新增角色'] },
+    series: [
+      { name: '活跃用户', type: 'line', smooth: true, areaStyle: {}, data: dataA },
+      { name: '新增角色', type: 'line', smooth: true, data: dataB },
+    ],
+  })
+}
+function handleResize() { chart?.resize() }
 
 async function loadProfile() {
   const res: any = await getProfile()
@@ -65,6 +91,15 @@ onMounted(() => {
     return
   }
   init()
+  nextTick(() => {
+    renderChart()
+    window.addEventListener('resize', handleResize)
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  chart?.dispose(); chart = null
 })
 </script>
 
@@ -96,8 +131,8 @@ onMounted(() => {
 
     <a-row :gutter="16" class="mb16">
       <a-col :span="16">
-        <a-card title="活跃趋势（占位）" :bordered="true">
-          <div class="chart-placeholder">暂未接入图表库，后续可接入 ECharts</div>
+        <a-card title="活跃趋势" :bordered="true">
+          <div ref="chartRef" class="chart"></div>
         </a-card>
       </a-col>
       <a-col :span="8">

@@ -11,6 +11,7 @@
   "dependencies": {
   "@arco-design/web-vue": "^2.56.4",
   "axios": "^1.7.7",
+  "echarts": "^5.5.1",
   "vue": "^3.5.18",
   "vue-router": "^4.4.5"
   },
