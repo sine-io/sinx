@@ -2,8 +2,9 @@
 import { reactive, ref, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
-import { login } from '../utils/api'
+import { login, getAllPerms } from '../utils/api'
 import { setToken } from '../utils/auth'
+import { savePerms } from '../utils/perms'
 
 interface FormState { username: string; password: string }
 const form = reactive<FormState>({ username: '', password: '' })
@@ -36,6 +37,16 @@ async function onSubmit() {
     const res: any = await login(form)
     const token = res?.data?.token
     if (token) setToken(token)
+    // 登录后先拉取权限并写入缓存，再进行路由跳转，确保守卫放行
+    try {
+      const permsRes: any = await getAllPerms()
+      const list: string[] = permsRes?.data || []
+      if (Array.isArray(list)) {
+        savePerms(new Set(list))
+      }
+    } catch {
+      // 拉取权限失败不阻塞登录跳转
+    }
     const redirect = (route.query.redirect as string) || '/'
     router.replace(redirect)
   } catch (e: any) {

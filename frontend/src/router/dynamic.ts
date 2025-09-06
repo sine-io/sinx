@@ -82,8 +82,16 @@ export async function initDynamicRoutes(router: Router) {
     const roots = visible(data)
     const routes = roots.map(toRoute).filter(Boolean) as RouteRecordRaw[]
     routes.forEach((r) => router.addRoute(r))
+    // 记录第一个可访问的叶子路径
+    _firstMenuPath = roots.length ? firstLeafPath(roots[0]) : undefined
   } catch (e) {
     // 忽略，保底不影响启动
     console.warn('initDynamicRoutes failed:', e)
   }
+}
+
+// 缓存第一个菜单叶子路径，供登录后首页重定向使用
+let _firstMenuPath: string | undefined
+export function getFirstMenuPath() {
+  return _firstMenuPath
 }

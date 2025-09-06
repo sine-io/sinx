@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getProfile } from './utils/api'
 import { clearToken } from './utils/auth'
 import SiderMenu from './components/SiderMenu.vue'
+import Breadcrumbs from './components/Breadcrumbs.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,6 +46,8 @@ onMounted(() => {
           <SiderMenu />
         </a-layout-sider>
         <a-layout-content style="padding:16px">
+          <Breadcrumbs />
+          <div style="height:12px" />
           <router-view />
         </a-layout-content>
       </a-layout>
