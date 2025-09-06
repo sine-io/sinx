@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProfile } from './utils/api'
-import { clearToken } from './utils/auth'
+import { clearToken, getToken } from './utils/auth'
 import SiderMenu from './components/SiderMenu.vue'
 import Breadcrumbs from './components/Breadcrumbs.vue'
 
@@ -26,6 +26,18 @@ function onLogout() {
 onMounted(() => {
   if (!isLogin.value) loadProfile()
 })
+
+// 监听路由变化：当进入受保护页面且本地有 token 时，刷新一次用户信息
+watch(
+  () => route.fullPath,
+  () => {
+    if (!isLogin.value && getToken()) {
+      loadProfile()
+    } else if (isLogin.value) {
+      username.value = ''
+    }
+  }
+)
 </script>
 
 <template>
