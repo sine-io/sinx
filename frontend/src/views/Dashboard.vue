@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { getProfile, getUserList, getRoleList, getMenuList } from '../utils/api'
 import { getToken } from '../utils/auth'
+import { loadPerms, hasPerm } from '../utils/perms'
 import * as echarts from 'echarts'
 
 type Stat = { label: string; value: number; link?: string }
@@ -51,12 +52,14 @@ async function loadProfile() {
 async function loadStats() {
   statLoading.value = true
   try {
-    // 仅取 total，不需要真实数据内容
-    const [u, r, m] = await Promise.all([
-      getUserList(1, 1),
-      getRoleList(1, 1),
-      getMenuList(1, 1),
-    ])
+    // 仅取 total，不需要真实数据内容；按权限决定是否发起请求，避免 403 噪声
+    const perms = loadPerms()
+    const promises: Array<Promise<any> | null> = [
+      hasPerm(perms, 'user:list') ? getUserList(1, 1) : null,
+      hasPerm(perms, 'role:list') ? getRoleList(1, 1) : null,
+      hasPerm(perms, 'menu:list') ? getMenuList(1, 1) : null,
+    ]
+    const [u, r, m] = await Promise.all(promises.map(p => p ?? Promise.resolve(undefined)))
     const userTotal = (u?.data?.total ?? 0) as number
     const roleTotal = (r?.data?.total ?? 0) as number
     const menuTotal = (m?.data?.total ?? 0) as number
@@ -166,5 +169,6 @@ onBeforeUnmount(() => {
 .stat { display: flex; align-items: baseline; justify-content: space-between; }
 .stat .label { color: var(--color-text-2); }
 .stat .value { font-size: 28px; font-weight: 700; }
+.chart { height: 260px; }
 .chart-placeholder { height: 220px; display: flex; align-items: center; justify-content: center; color: var(--color-text-3); background: var(--color-fill-2); border-radius: 6px; }
 </style>

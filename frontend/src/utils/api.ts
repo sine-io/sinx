@@ -25,6 +25,11 @@ export async function getAllPerms() {
   return request.get('/perms/all')
 }
 
+// 当前登录用户的权限集合
+export async function getMyPerms() {
+  return request.get('/perms/me')
+}
+
 // 用户列表（用于获取 total 统计）
 export async function getUserList(pageNum = 1, pageSize = 10) {
   return request.get('/user/list', { params: { pageNum, pageSize } })

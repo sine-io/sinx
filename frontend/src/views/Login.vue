@@ -2,7 +2,7 @@
 import { reactive, ref, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
-import { login, getAllPerms } from '../utils/api'
+import { login, getAllPerms, getMyPerms } from '../utils/api'
 import { setToken } from '../utils/auth'
 import { savePerms } from '../utils/perms'
 
@@ -39,8 +39,14 @@ async function onSubmit() {
     if (token) setToken(token)
     // 登录后先拉取权限并写入缓存，再进行路由跳转，确保守卫放行
     try {
-      const permsRes: any = await getAllPerms()
-      const list: string[] = permsRes?.data || []
+      // 优先获取“我的权限”，避免前端误请求无权接口
+      const meRes: any = await getMyPerms()
+      let list: string[] = meRes?.data || []
+      // 兜底：如果后端未实现 /perms/me，则尝试全量
+      if (!Array.isArray(list) || list.length === 0) {
+        const permsRes: any = await getAllPerms()
+        list = permsRes?.data || []
+      }
       if (Array.isArray(list)) {
         savePerms(new Set(list))
       }

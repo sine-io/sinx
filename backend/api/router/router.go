@@ -82,6 +82,26 @@ func SetupRoutes(r *gin.Engine, userHandler *handler.UserHandler, rbacHandler *h
 		api.GET("/perms/all", middleware.AuthMiddleware(), func(c *gin.Context) {
 			c.JSON(200, gin.H{"code": 0, "data": permissions.AllPerms})
 		})
+
+		// 返回当前用户拥有的权限标识集合（前端可用于按钮/接口按需请求）
+		api.GET("/perms/me", middleware.AuthMiddleware(), func(c *gin.Context) {
+			uid, ok := middleware.GetUserID(c)
+			if !ok {
+				c.JSON(401, gin.H{"code": 10003, "message": "未认证"})
+				return
+			}
+			perms, err := rbacHandler.Service().GetUserPerms(c, uid)
+			if err != nil {
+				c.JSON(500, gin.H{"code": 1, "message": err.Error()})
+				return
+			}
+			// 转为 slice
+			list := make([]string, 0, len(perms))
+			for k := range perms {
+				list = append(list, k)
+			}
+			c.JSON(200, gin.H{"code": 0, "data": list})
+		})
 	}
 
 	// 健康检查路由
