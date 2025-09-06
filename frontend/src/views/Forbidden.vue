@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { getToken } from '../utils/auth'
+import { getFirstMenuPath } from '../router/dynamic'
 
 const router = useRouter()
 
 function goHome() {
-  router.replace('/')
+  // 优先跳转首个可见菜单；若未登录则回登录；否则回根路径
+  const first = getFirstMenuPath()
+  const token = getToken()
+  if (!token) {
+    router.replace('/login')
+    return
+  }
+  router.replace(first || '/')
 }
 
 function goBack() {

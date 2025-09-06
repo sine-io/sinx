@@ -34,10 +34,10 @@ onMounted(() => {
   </template>
   <template v-else>
     <a-layout style="height: 100%">
-      <a-layout-header style="display:flex;align-items:center;gap:12px;justify-content:space-between">
-        <div style="font-weight:600">SinX Admin</div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <span style="color:var(--color-text-2)">{{ username || '未登录' }}</span>
+      <a-layout-header class="header-bar">
+        <div class="brand">SinX Admin</div>
+        <div class="user-area">
+          <span class="username">{{ username || '未登录' }}</span>
           <a-button size="small" status="danger" @click="onLogout">退出</a-button>
         </div>
       </a-layout-header>
@@ -57,4 +57,33 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Header beautify */
+.header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 56px;
+  padding: 0 20px; /* prevent flush to edges */
+  background: var(--color-bg-1, #fff);
+  border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+  box-sizing: border-box;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.3px;
+  color: var(--color-text-1, #1d2129);
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.username {
+  color: var(--color-text-2, #4e5969);
+}
 </style>
