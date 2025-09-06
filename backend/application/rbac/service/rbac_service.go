@@ -391,3 +391,30 @@ func (s *RBACApplicationService) invalidatePermCache(userIDs []uint) {
 		s.redisPermCache.InvalidateUsers(context.Background(), userIDs)
 	}
 }
+
+// StatsOverview 返回基础统计：用户数、角色数、菜单数
+// 该方法仅做计数统计，不涉及数据明细
+func (s *RBACApplicationService) StatsOverview(ctx context.Context) (users int64, roles int64, menus int64, err error) {
+	// 用户数
+	if u, e := s.userRepository.Count(ctx); e != nil {
+		err = e
+		return
+	} else {
+		users = u
+	}
+	// 角色数
+	if r, e := s.roleRepository.Count(ctx); e != nil {
+		err = e
+		return
+	} else {
+		roles = r
+	}
+	// 菜单数（无筛选）
+	if m, e := s.menuRepository.Count(ctx, "", nil); e != nil {
+		err = e
+		return
+	} else {
+		menus = m
+	}
+	return
+}

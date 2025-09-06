@@ -523,3 +523,19 @@ func (h *RBACHandler) MenuRoles(c *gin.Context) {
 	}
 	response.Success(c, roles)
 }
+
+// StatsOverview 仪表盘统计：用户数、角色数、菜单数
+// @Summary 仪表盘统计概览
+// @Tags 统计
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} response.Response
+// @Router /api/stats/overview [get]
+func (h *RBACHandler) StatsOverview(c *gin.Context) {
+	u, r, m, err := h.svc.StatsOverview(c)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"users": u, "roles": r, "menus": m})
+}

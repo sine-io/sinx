@@ -78,6 +78,12 @@ func SetupRoutes(r *gin.Engine, userHandler *handler.UserHandler, rbacHandler *h
 			menu.GET("/roleMenuTree", middleware.PermissionMiddleware("menu:roleMenuTree", permChecker), rbacHandler.GetRoleMenuTree)
 		}
 
+		// 仪表盘统计（仅需要登录，不做细粒度权限限制）
+		stats := api.Group("/stats").Use(middleware.AuthMiddleware())
+		{
+			stats.GET("/overview", rbacHandler.StatsOverview)
+		}
+
 		// 导出所有权限（需登录，便于前端动态渲染）
 		api.GET("/perms/all", middleware.AuthMiddleware(), func(c *gin.Context) {
 			c.JSON(200, gin.H{"code": 0, "data": permissions.AllPerms})

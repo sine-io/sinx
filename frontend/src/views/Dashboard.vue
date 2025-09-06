@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { getProfile, getUserList, getRoleList, getMenuList } from '../utils/api'
+import { getProfile, getUserList, getRoleList, getMenuList, getStatsOverview } from '../utils/api'
 import { getToken } from '../utils/auth'
 import { loadPerms, hasPerm } from '../utils/perms'
 import * as echarts from 'echarts'
@@ -52,24 +52,37 @@ async function loadProfile() {
 async function loadStats() {
   statLoading.value = true
   try {
-    // 仅取 total，不需要真实数据内容；按权限决定是否发起请求，避免 403 噪声
-    const perms = loadPerms()
-    const promises: Array<Promise<any> | null> = [
-      hasPerm(perms, 'user:list') ? getUserList(1, 1) : null,
-      hasPerm(perms, 'role:list') ? getRoleList(1, 1) : null,
-      hasPerm(perms, 'menu:list') ? getMenuList(1, 1) : null,
-    ]
-    const [u, r, m] = await Promise.all(promises.map(p => p ?? Promise.resolve(undefined)))
-    const userTotal = (u?.data?.total ?? 0) as number
-    const roleTotal = (r?.data?.total ?? 0) as number
-    const menuTotal = (m?.data?.total ?? 0) as number
+    // 优先使用后端聚合统计，避免触发受限的列表权限
+    const res: any = await getStatsOverview()
+    const u = Number(res?.data?.users ?? 0)
+    const r = Number(res?.data?.roles ?? 0)
+    const m = Number(res?.data?.menus ?? 0)
     stats.value = [
-      { label: '用户数', value: userTotal, link: '/system/user' },
-      { label: '角色数', value: roleTotal, link: '/system/role' },
-      { label: '菜单数', value: menuTotal, link: '/system/menu' },
+      { label: '用户数', value: u, link: '/system/user' },
+      { label: '角色数', value: r, link: '/system/role' },
+      { label: '菜单数', value: m, link: '/system/menu' },
     ]
   } catch {
-    // 忽略统计失败，保持默认 0
+    // 降级方案：按权限调用列表 total
+    try {
+      const perms = loadPerms()
+      const promises: Array<Promise<any> | null> = [
+        hasPerm(perms, 'user:list') ? getUserList(1, 1) : null,
+        hasPerm(perms, 'role:list') ? getRoleList(1, 1) : null,
+        hasPerm(perms, 'menu:list') ? getMenuList(1, 1) : null,
+      ]
+      const [u, r, m] = await Promise.all(promises.map(p => p ?? Promise.resolve(undefined)))
+      const userTotal = (u?.data?.total ?? 0) as number
+      const roleTotal = (r?.data?.total ?? 0) as number
+      const menuTotal = (m?.data?.total ?? 0) as number
+      stats.value = [
+        { label: '用户数', value: userTotal, link: '/system/user' },
+        { label: '角色数', value: roleTotal, link: '/system/role' },
+        { label: '菜单数', value: menuTotal, link: '/system/menu' },
+      ]
+    } catch {
+      // 忽略统计失败，保持默认 0
+    }
   } finally {
     statLoading.value = false
   }

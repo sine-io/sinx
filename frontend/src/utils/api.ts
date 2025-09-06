@@ -44,3 +44,8 @@ export async function getRoleList(pageNum = 1, pageSize = 10) {
 export async function getMenuList(pageNum = 1, pageSize = 10) {
   return request.get('/menu/list', { params: { pageNum, pageSize } })
 }
+
+// 仪表盘统计
+export async function getStatsOverview() {
+  return request.get('/stats/overview')
+}
