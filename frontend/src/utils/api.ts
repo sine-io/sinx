@@ -24,3 +24,18 @@ export async function getUserMenus(userId?: number | string) {
 export async function getAllPerms() {
   return request.get('/perms/all')
 }
+
+// 用户列表（用于获取 total 统计）
+export async function getUserList(pageNum = 1, pageSize = 10) {
+  return request.get('/user/list', { params: { pageNum, pageSize } })
+}
+
+// 角色列表（用于获取 total 统计）
+export async function getRoleList(pageNum = 1, pageSize = 10) {
+  return request.get('/role/list', { params: { pageNum, pageSize } })
+}
+
+// 菜单列表（用于获取 total 统计）
+export async function getMenuList(pageNum = 1, pageSize = 10) {
+  return request.get('/menu/list', { params: { pageNum, pageSize } })
+}
