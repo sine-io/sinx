@@ -12,8 +12,8 @@ const instance = axios.create({
 instance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getToken()
   if (token) {
-    config.headers = config.headers || {}
-    config.headers.Authorization = `Bearer ${token}`
+  // Avoid reassigning headers to satisfy Axios v1 types
+  (config.headers as any).Authorization = `Bearer ${token}`
   }
   return config
 })
@@ -30,10 +30,19 @@ instance.interceptors.response.use(
       }
       return Promise.reject(new Error(data.message || 'Request Error'))
     }
-  // Cast to any because we unwrap the unified envelope
-  return data as any
+    // Cast to any because we unwrap the unified envelope
+    return data as any
   },
   (err: AxiosError) => {
+    // If backend returns HTTP 401, clear token and redirect to login
+    const status = (err.response?.status as number | undefined)
+    if (status === 401) {
+      clearToken()
+      if (window.location.pathname !== '/login') {
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?redirect=${redirect}`
+      }
+    }
     return Promise.reject(err)
   }
 )

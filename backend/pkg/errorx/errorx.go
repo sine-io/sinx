@@ -52,7 +52,7 @@ func (e *Error) HTTPStatus() int {
 		return http.StatusOK
 	case ErrInvalidParam:
 		return http.StatusBadRequest
-	case ErrUnauthorized, ErrUserInvalidToken, ErrUserTokenExpired:
+	case ErrUnauthorized, ErrUserInvalidToken, ErrUserTokenExpired, ErrUserInvalidPassword:
 		return http.StatusUnauthorized
 	case ErrForbidden:
 		return http.StatusForbidden

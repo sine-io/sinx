@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '../utils/api'
 import { setToken } from '../utils/auth'
@@ -19,6 +20,10 @@ async function onSubmit() {
     if (token) setToken(token)
     const redirect = (route.query.redirect as string) || '/'
     router.replace(redirect)
+  } catch (e: any) {
+    // Show a friendly error message
+    const msg = e?.response?.data?.message || e?.message || '登录失败，请重试'
+  Message.error(msg)
   } finally {
     loading.value = false
   }

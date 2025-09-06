@@ -34,6 +34,13 @@ func (s *UserApplicationService) Register(ctx context.Context, req *dto.Register
 func (s *UserApplicationService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
 	user, err := s.userDomainService.AuthenticateUser(ctx, req.Username, req.Password)
 	if err != nil {
+		// Hide specific reasons during login to avoid user enumeration
+		if appErr, ok := err.(*errorx.Error); ok {
+			switch appErr.Code {
+			case errorx.ErrUserNotFound, errorx.ErrUserInvalidPassword:
+				return nil, errorx.NewWithCode(errorx.ErrUnauthorized)
+			}
+		}
 		return nil, err
 	}
 
