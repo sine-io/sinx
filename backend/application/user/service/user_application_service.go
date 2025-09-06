@@ -38,7 +38,8 @@ func (s *UserApplicationService) Login(ctx context.Context, req *dto.LoginReques
 		if appErr, ok := err.(*errorx.Error); ok {
 			switch appErr.Code {
 			case errorx.ErrUserNotFound, errorx.ErrUserInvalidPassword:
-				return nil, errorx.NewWithCode(errorx.ErrUnauthorized)
+				// Keep HTTP 401 but return a friendly, localized message
+				return nil, errorx.New(errorx.ErrUnauthorized, "用户名或密码错误")
 			}
 		}
 		return nil, err
