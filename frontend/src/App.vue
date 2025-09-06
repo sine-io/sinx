@@ -27,13 +27,13 @@ onMounted(() => {
   if (!isLogin.value) loadProfile()
 })
 
-// 监听路由变化：当进入受保护页面且本地有 token 时，刷新一次用户信息
+// 仅在从登录页进入应用时加载一次用户信息，避免每次切换菜单都请求 profile
 watch(
-  () => route.fullPath,
-  () => {
-    if (!isLogin.value && getToken()) {
+  () => route.name,
+  (newName, oldName) => {
+    if (oldName === 'login' && newName !== 'login' && getToken()) {
       loadProfile()
-    } else if (isLogin.value) {
+    } else if (newName === 'login') {
       username.value = ''
     }
   }
