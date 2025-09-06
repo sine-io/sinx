@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory, type RouteRecordRaw, type NavigationGuardNext, type RouteLocationNormalized } from 'vue-router'
-import { getFirstMenuPath } from './dynamic'
 import { getToken } from '../utils/auth'
 import { loadPerms, hasPerm } from '../utils/perms'
 
@@ -24,14 +23,6 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
   if (!to.meta.public && !token) {
     next({ name: 'login', query: { redirect: to.fullPath } })
     return
-  }
-  // 登录后访问根路径时，自动跳转到第一个菜单
-  if (to.path === '/' && !to.meta.public) {
-    const first = getFirstMenuPath()
-    if (first && first !== '/') {
-      next({ path: first, replace: true })
-      return
-    }
   }
   // 权限校验：基于路由 meta.perms 与本地缓存的权限集合
   const required = to.meta?.perms as string | undefined

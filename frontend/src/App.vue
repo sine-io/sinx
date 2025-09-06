@@ -47,7 +47,7 @@ watch(
   <template v-else>
     <a-layout style="height: 100%">
       <a-layout-header class="header-bar">
-        <div class="brand">SinX Admin</div>
+  <router-link to="/" class="brand brand-link">SinX Admin</router-link>
         <div class="user-area">
           <span class="username">{{ username || '未登录' }}</span>
           <a-button size="small" status="danger" @click="onLogout">退出</a-button>
@@ -87,6 +87,14 @@ watch(
   font-size: 16px;
   letter-spacing: 0.3px;
   color: var(--color-text-1, #1d2129);
+}
+
+.brand-link {
+  text-decoration: none;
+  color: inherit;
+}
+.brand-link:hover {
+  opacity: 0.9;
 }
 
 .user-area {
