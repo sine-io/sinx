@@ -19,6 +19,14 @@ const router = createRouter({
 })
 
 router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
+  // 小优化：当动态路由已注册时，将根路径重定向到工作台
+  if (to.path === '/') {
+    const hasWorkbench = router.getRoutes().some((r) => r.path === '/workbench')
+    if (hasWorkbench) {
+      next({ path: '/workbench', replace: true })
+      return
+    }
+  }
   const token = getToken()
   if (!to.meta.public && !token) {
     next({ name: 'login', query: { redirect: to.fullPath } })

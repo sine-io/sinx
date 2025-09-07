@@ -53,8 +53,9 @@ async function onSubmit() {
     } catch {
       // 拉取权限失败不阻塞登录跳转
     }
-    const redirect = (route.query.redirect as string) || '/'
-    router.replace(redirect)
+  const redirectRaw = (route.query.redirect as string) || '/workbench'
+  const redirect = redirectRaw === '/' ? '/workbench' : redirectRaw
+  router.replace(redirect)
   } catch (e: any) {
     // Show a friendly error message
     const msg = e?.response?.data?.message || e?.message || '登录失败，请重试'

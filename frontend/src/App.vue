@@ -46,8 +46,8 @@ watch(
   </template>
   <template v-else>
     <a-layout style="height: 100%">
-      <a-layout-header class="header-bar">
-  <router-link to="/" class="brand brand-link">SinX Admin</router-link>
+    <a-layout-header class="header-bar">
+  <router-link to="/workbench" class="brand brand-link">SinX Admin</router-link>
         <div class="user-area">
           <span class="username">{{ username || '未登录' }}</span>
           <a-button size="small" status="danger" @click="onLogout">退出</a-button>
